@@ -1,0 +1,111 @@
+#pragma code_page(65001)
+
+#include "resource.h"
+#include "afxres.h"
+
+LANGUAGE LANG_KOREAN, SUBLANG_DEFAULT
+
+IDB_LOGO                BITMAP                  "res\\logo.bmp"
+
+IDR_MAINFRAME MENU
+BEGIN
+    POPUP "파일(&F)"
+    BEGIN
+        MENUITEM "열기(&O)...\tCtrl+O",       ID_FILE_OPEN
+        MENUITEM SEPARATOR
+        MENUITEM "끝내기(&X)",                 ID_APP_EXIT
+    END
+    POPUP "보기(&V)"
+    BEGIN
+        MENUITEM "2D 모드(&2)",                 ID_MODE_2D
+        MENUITEM "3D 모드(&3)",                 ID_MODE_3D
+        MENUITEM SEPARATOR
+        MENUITEM "처음 상태로(&H)\tHome",       ID_VIEW_RESET
+        MENUITEM "전체 보기(&E)",               ID_VIEW_ZOOM_EXTENTS
+        MENUITEM SEPARATOR
+        MENUITEM "평면도(&T)\tF5",              ID_VIEW_TOP
+        MENUITEM "정면도(&R)\tF6",              ID_VIEW_FRONT
+        MENUITEM "우측면도(&G)\tF7",            ID_VIEW_RIGHT
+        MENUITEM "등각 보기(&I)\tF8",           ID_VIEW_ISO
+        MENUITEM SEPARATOR
+        MENUITEM "모든 레이어 켜기",            ID_LAYER_ALL_ON
+        MENUITEM "모든 레이어 끄기",            ID_LAYER_ALL_OFF
+        MENUITEM SEPARATOR
+        MENUITEM "상태 표시줄(&S)",             ID_VIEW_STATUS_BAR
+    END
+    POPUP "경로(&P)"
+    BEGIN
+        MENUITEM "경로 정렬(&O)\tF9",           ID_PATH_OPTIMIZE
+        MENUITEM "파일 순서로 되돌리기(&R)",     ID_PATH_ORIGINAL
+        MENUITEM SEPARATOR
+        MENUITEM "공이동 경로 표시(&T)\tT",      ID_PATH_TRAVEL
+        MENUITEM "가공 시뮬레이션(&S)\tSpace",   ID_PATH_SIMULATE
+    END
+END
+
+// Bar above the drawing: 2D / 3D mode buttons and the mouse controls of the current mode.
+IDD_MODEBAR DIALOGEX 0, 0, 800, 18
+STYLE DS_SETFONT | WS_CHILD
+FONT 9, "맑은 고딕"
+BEGIN
+    CONTROL         "2D", ID_MODE_2D, "Button", BS_CHECKBOX | BS_PUSHLIKE | WS_TABSTOP, 4, 2, 34, 14
+    CONTROL         "3D", ID_MODE_3D, "Button", BS_CHECKBOX | BS_PUSHLIKE | WS_TABSTOP, 40, 2, 34, 14
+    PUSHBUTTON      "경로 정렬", ID_PATH_OPTIMIZE, 86, 2, 50, 14
+    PUSHBUTTON      "파일 순서", ID_PATH_ORIGINAL, 138, 2, 50, 14
+    CONTROL         "공이동 표시", ID_PATH_TRAVEL, "Button", BS_CHECKBOX | BS_PUSHLIKE | WS_TABSTOP, 190, 2, 54, 14
+    CONTROL         "▶ 시뮬레이션", ID_PATH_SIMULATE, "Button", BS_CHECKBOX | BS_PUSHLIKE | WS_TABSTOP, 246, 2, 62, 14
+    // 3D only (CMainFrame shows the box in 3D mode)
+    RTEXT           "Z 여유", ID_LIFT_LABEL, 312, 5, 32, 9, NOT WS_VISIBLE
+    EDITTEXT        ID_LIFT_GAP, 347, 3, 28, 12, ES_AUTOHSCROLL | NOT WS_VISIBLE
+    LTEXT           "mm", ID_LIFT_UNIT, 378, 5, 14, 9, NOT WS_VISIBLE
+    LTEXT           "", ID_MODE_HINT, 406, 5, 390, 9
+END
+
+// Shown while the cutting path is sorted, when that takes more than a moment.
+IDD_PROGRESS DIALOGEX 0, 0, 240, 72
+STYLE DS_SETFONT | DS_MODALFRAME | DS_CENTER | WS_POPUP | WS_CAPTION | WS_SYSMENU
+CAPTION "진행 중"
+FONT 9, "맑은 고딕"
+BEGIN
+    LTEXT           "", IDC_PROGRESS_TEXT, 10, 10, 220, 10
+    CONTROL         "", IDC_PROGRESS_BAR, "msctls_progress32", WS_BORDER, 10, 26, 220, 12
+    PUSHBUTTON      "취소", IDCANCEL, 95, 50, 50, 14
+END
+
+IDR_MAINFRAME ACCELERATORS
+BEGIN
+    "O",        ID_FILE_OPEN,           VIRTKEY, CONTROL
+    VK_HOME,    ID_VIEW_RESET,          VIRTKEY
+    VK_F5,      ID_VIEW_TOP,            VIRTKEY
+    VK_F6,      ID_VIEW_FRONT,          VIRTKEY
+    VK_F7,      ID_VIEW_RIGHT,          VIRTKEY
+    VK_F8,      ID_VIEW_ISO,            VIRTKEY
+    VK_F9,      ID_PATH_OPTIMIZE,       VIRTKEY
+    "T",        ID_PATH_TRAVEL,         VIRTKEY
+    VK_SPACE,   ID_PATH_SIMULATE,       VIRTKEY
+END
+
+STRINGTABLE
+BEGIN
+    IDR_MAINFRAME           "DXF 뷰어\n\nDXF\nDXF 파일 (*.dxf)\n.dxf\nDxfViewer.Document\nDXF Document"
+    AFX_IDS_APP_TITLE       "DXF 뷰어"
+    AFX_IDS_IDLEMESSAGE     "준비"
+    ID_INDICATOR_COORD      "X: 0000000.0000  Y: 0000000.0000"
+    ID_VIEW_ZOOM_EXTENTS    "도면 전체가 보이도록 맞춥니다 (도면 더블클릭과 같음)\n전체 보기"
+    ID_VIEW_RESET           "파일을 처음 열었을 때로 되돌립니다: 선택 해제, 파일 순서, 레이어 표시, 시점\n처음 상태로"
+    ID_LAYER_ALL_ON         "모든 레이어를 표시합니다\n모든 레이어 켜기"
+    ID_LAYER_ALL_OFF        "모든 레이어를 숨깁니다\n모든 레이어 끄기"
+    ID_VIEW_TOP             "위에서 내려다봅니다\n평면도"
+    ID_VIEW_FRONT           "앞(-Y 방향)에서 봅니다 (3D 모드로 전환)\n정면도"
+    ID_VIEW_RIGHT           "오른쪽(+X 방향)에서 봅니다 (3D 모드로 전환)\n우측면도"
+    ID_VIEW_ISO             "왼쪽 앞 위에서 비스듬히 봅니다 (3D 모드로 전환)\n등각 보기"
+    ID_MODE_2D              "위에서 내려다보는 평면 보기, 회전 없음\n2D 모드"
+    ID_MODE_3D              "오른쪽 드래그로 회전하는 입체 보기\n3D 모드"
+    ID_PATH_OPTIMIZE        "보이는 엔티티를 가공 순서로 정렬합니다: 레이어 공정 순서, 안쪽 먼저(2D), 그 안에서 최단 공이동\n경로 정렬"
+    ID_LIFT_GAP             "3D 정렬에서 공이동할 때 도면의 가장 높은 점보다 이만큼(mm) 위로 들어 올렸다가 이동합니다. Enter: 다시 정렬\nZ 여유(mm): 공이동 때 가장 높은 점 위로 들어 올리는 높이 (Enter: 다시 정렬)"
+    ID_PATH_ORIGINAL        "엔티티를 파일에 적힌 순서로 되돌립니다\n파일 순서로 되돌리기"
+    ID_PATH_TRAVEL          "엔티티 사이를 이동하는 경로(주황)와 시작점(초록)을 표시합니다\n공이동 경로 표시"
+    ID_PATH_SIMULATE        "가공 순서대로 경로를 그리며 재생합니다\n가공 시뮬레이션"
+END
+
+#include "l.kor\\afxres.rc"
