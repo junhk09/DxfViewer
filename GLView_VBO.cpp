@@ -1,14 +1,14 @@
 #include "pch.h"
-#include "GLView.h"
+#include "GLView_VBO.h"
 #include "DxfDoc.h"
 #include "MainFrm.h"
 #include "PathOptimizer.h"
 
 #include <algorithm>
 
-IMPLEMENT_DYNCREATE(CGLView, CView)
+IMPLEMENT_DYNCREATE(CGLViewVBO, CView)
 
-BEGIN_MESSAGE_MAP(CGLView, CView)
+BEGIN_MESSAGE_MAP(CGLViewVBO, CView)
     ON_WM_CREATE()
     ON_WM_DESTROY()
     ON_WM_ERASEBKGND()
@@ -112,12 +112,12 @@ GLuint CompileShader(GLenum type, const char* source, CString& log)
 
 }
 
-CDxfDoc* CGLView::GetDocument() const
+CDxfDoc* CGLViewVBO::GetDocument() const
 {
     return reinterpret_cast<CDxfDoc*>(m_pDocument);
 }
 
-BOOL CGLView::PreCreateWindow(CREATESTRUCT& cs)
+BOOL CGLViewVBO::PreCreateWindow(CREATESTRUCT& cs)
 {
     if (!CView::PreCreateWindow(cs))
         return FALSE;
@@ -127,7 +127,7 @@ BOOL CGLView::PreCreateWindow(CREATESTRUCT& cs)
     return TRUE;
 }
 
-int CGLView::OnCreate(LPCREATESTRUCT lpCreateStruct)
+int CGLViewVBO::OnCreate(LPCREATESTRUCT lpCreateStruct)
 {
     if (CView::OnCreate(lpCreateStruct) == -1)
         return -1;
@@ -135,13 +135,13 @@ int CGLView::OnCreate(LPCREATESTRUCT lpCreateStruct)
     return 0;
 }
 
-bool CGLView::Fail(const CString& message)
+bool CGLViewVBO::Fail(const CString& message)
 {
     m_glError = message;
     return false;
 }
 
-bool CGLView::InitGL()
+bool CGLViewVBO::InitGL()
 {
     m_hdc = ::GetDC(m_hWnd);
 
@@ -223,7 +223,7 @@ bool CGLView::InitGL()
     return true;
 }
 
-GLuint CGLView::CreateProgram()
+GLuint CGLViewVBO::CreateProgram()
 {
     CString log;
     GLuint vs = CompileShader(GL_VERTEX_SHADER, kVertexShader, log);
@@ -258,14 +258,14 @@ GLuint CGLView::CreateProgram()
     return program;
 }
 
-void CGLView::OnDestroy()
+void CGLViewVBO::OnDestroy()
 {
     KillTimer(kSimTimer);
     ShutdownGL();
     CView::OnDestroy();
 }
 
-void CGLView::ShutdownGL()
+void CGLViewVBO::ShutdownGL()
 {
     if (m_hrc)
     {
@@ -299,7 +299,7 @@ void CGLView::ShutdownGL()
     m_glOk = false;
 }
 
-void CGLView::EnsureMsaa(int w, int h)
+void CGLViewVBO::EnsureMsaa(int w, int h)
 {
     if (m_msaaFailed || (m_fbo && w == m_fbW && h == m_fbH))
         return;
@@ -324,7 +324,7 @@ void CGLView::EnsureMsaa(int w, int h)
     m_fbH = h;
 }
 
-void CGLView::BuildBuffers()
+void CGLViewVBO::BuildBuffers()
 {
     const DxfDrawing& dwg = GetDocument()->m_dwg;
     m_ranges.clear();
@@ -373,7 +373,7 @@ void CGLView::BuildBuffers()
     glBindBuffer(GL_ARRAY_BUFFER, 0);
 }
 
-void CGLView::PushVertex(std::vector<float>& v, const Vec3& p, unsigned int rgb) const
+void CGLViewVBO::PushVertex(std::vector<float>& v, const Vec3& p, unsigned int rgb) const
 {
     v.push_back(static_cast<float>(p.x - m_origin.x));
     v.push_back(static_cast<float>(p.y - m_origin.y));
@@ -383,7 +383,7 @@ void CGLView::PushVertex(std::vector<float>& v, const Vec3& p, unsigned int rgb)
     v.push_back((rgb & 0xFF) / 255.0f);
 }
 
-void CGLView::BuildTravel()
+void CGLViewVBO::BuildTravel()
 {
     const DxfDrawing& dwg = GetDocument()->m_dwg;
     const TravelModel& model = GetDocument()->m_travelModel;
@@ -413,13 +413,13 @@ void CGLView::BuildTravel()
     glBindBuffer(GL_ARRAY_BUFFER, 0);
 }
 
-void CGLView::ToggleTravel()
+void CGLViewVBO::ToggleTravel()
 {
     m_showTravel = !m_showTravel;
     Invalidate(FALSE);
 }
 
-void CGLView::ToggleSimulation()
+void CGLViewVBO::ToggleSimulation()
 {
     if (m_simActive)
     {
@@ -476,7 +476,7 @@ void CGLView::ToggleSimulation()
     Invalidate(FALSE);
 }
 
-void CGLView::StopSimulation()
+void CGLViewVBO::StopSimulation()
 {
     if (!m_simActive)
         return;
@@ -485,7 +485,7 @@ void CGLView::StopSimulation()
     Invalidate(FALSE);
 }
 
-void CGLView::OnTimer(UINT_PTR nIDEvent)
+void CGLViewVBO::OnTimer(UINT_PTR nIDEvent)
 {
     if (nIDEvent != kSimTimer)
     {
@@ -495,7 +495,7 @@ void CGLView::OnTimer(UINT_PTR nIDEvent)
     Invalidate(FALSE);
 }
 
-void CGLView::AdvanceSimulation()
+void CGLViewVBO::AdvanceSimulation()
 {
     LARGE_INTEGER now, frequency;
     QueryPerformanceCounter(&now);
@@ -514,7 +514,7 @@ void CGLView::AdvanceSimulation()
     }
 }
 
-void CGLView::DrawSimulation()
+void CGLViewVBO::DrawSimulation()
 {
     size_t done = std::upper_bound(m_simSegs.begin(), m_simSegs.end(), m_simProgress,
         [](double progress, const SimSegment& s) { return progress < s.end; }) - m_simSegs.begin();
@@ -545,7 +545,7 @@ void CGLView::DrawSimulation()
     glUniform1f(m_locPointSize, 5.0f);
 }
 
-void CGLView::Render()
+void CGLViewVBO::Render()
 {
     if (m_simActive)
         AdvanceSimulation();
@@ -631,7 +631,7 @@ void CGLView::Render()
     SwapBuffers(m_hdc);
 }
 
-void CGLView::OnDraw(CDC* pDC)
+void CGLViewVBO::OnDraw(CDC* pDC)
 {
     if (!m_glOk)
     {
@@ -647,7 +647,7 @@ void CGLView::OnDraw(CDC* pDC)
     Render();
 }
 
-void CGLView::OnUpdate(CView*, LPARAM lHint, CObject*)
+void CGLViewVBO::OnUpdate(CView*, LPARAM lHint, CObject*)
 {
     if (lHint == kHintSelection || lHint == kHintSelectionZoom)
     {
@@ -681,7 +681,7 @@ void CGLView::OnUpdate(CView*, LPARAM lHint, CObject*)
     Invalidate(FALSE);
 }
 
-void CGLView::ZoomExtents()
+void CGLViewVBO::ZoomExtents()
 {
     CRect rc;
     GetClientRect(&rc);
@@ -698,7 +698,7 @@ void CGLView::ZoomExtents()
     ZoomToBox(dwg.extMin, dwg.extMax, 0.92);
 }
 
-void CGLView::ZoomToBox(const Vec3& lo, const Vec3& hi, double fill)
+void CGLViewVBO::ZoomToBox(const Vec3& lo, const Vec3& hi, double fill)
 {
     m_target = { (lo.x + hi.x) / 2, (lo.y + hi.y) / 2, (lo.z + hi.z) / 2 };
 
@@ -719,7 +719,7 @@ void CGLView::ZoomToBox(const Vec3& lo, const Vec3& hi, double fill)
     m_scale = std::min(m_w / (2 * hw), m_h / (2 * hh)) * fill;
 }
 
-void CGLView::BuildSelection()
+void CGLViewVBO::BuildSelection()
 {
     const CDxfDoc* doc = GetDocument();
     const DxfDrawing& dwg = doc->m_dwg;
@@ -766,7 +766,7 @@ void CGLView::BuildSelection()
     glBindBuffer(GL_ARRAY_BUFFER, 0);
 }
 
-void CGLView::FocusSelection(bool zoom)
+void CGLViewVBO::FocusSelection(bool zoom)
 {
     if (!m_hasSelection)
         return;
@@ -785,7 +785,7 @@ void CGLView::FocusSelection(bool zoom)
         m_target = c;
 }
 
-void CGLView::SetView(double yawDeg, double pitchDeg)
+void CGLViewVBO::SetView(double yawDeg, double pitchDeg)
 {
     if (yawDeg != 0 || pitchDeg != 0)
         m_3d = true;
@@ -795,7 +795,7 @@ void CGLView::SetView(double yawDeg, double pitchDeg)
     Invalidate(FALSE);
 }
 
-void CGLView::SetMode3D(bool on)
+void CGLViewVBO::SetMode3D(bool on)
 {
     if (on == m_3d)
         return;
@@ -806,7 +806,7 @@ void CGLView::SetMode3D(bool on)
         SetView(0, 0);
 }
 
-void CGLView::Rotation(double r[3][3]) const
+void CGLViewVBO::Rotation(double r[3][3]) const
 {
     double yaw = m_yaw * kPi / 180, pitch = m_pitch * kPi / 180;
     double c = std::cos(yaw), s = std::sin(yaw);
@@ -816,7 +816,7 @@ void CGLView::Rotation(double r[3][3]) const
     r[2][0] = sp * s;  r[2][1] = sp * c;  r[2][2] = cp;
 }
 
-void CGLView::BuildMatrix(double kx, double ky, const Vec3& shift, float out[16]) const
+void CGLViewVBO::BuildMatrix(double kx, double ky, const Vec3& shift, float out[16]) const
 {
     double r[3][3];
     Rotation(r);
@@ -831,12 +831,12 @@ void CGLView::BuildMatrix(double kx, double ky, const Vec3& shift, float out[16]
     out[15] = 1.0f;
 }
 
-BOOL CGLView::OnEraseBkgnd(CDC*)
+BOOL CGLViewVBO::OnEraseBkgnd(CDC*)
 {
     return TRUE;
 }
 
-void CGLView::OnSize(UINT nType, int cx, int cy)
+void CGLViewVBO::OnSize(UINT nType, int cx, int cy)
 {
     CView::OnSize(nType, cx, cy);
     m_w = std::max(1, cx);
@@ -844,7 +844,7 @@ void CGLView::OnSize(UINT nType, int cx, int cy)
     Invalidate(FALSE);
 }
 
-Vec3 CGLView::ScreenToWorld(CPoint p) const
+Vec3 CGLViewVBO::ScreenToWorld(CPoint p) const
 {
     double r[3][3];
     Rotation(r);
@@ -855,7 +855,7 @@ Vec3 CGLView::ScreenToWorld(CPoint p) const
              m_target.z + r[0][2] * u + r[1][2] * v };
 }
 
-BOOL CGLView::OnMouseWheel(UINT, short zDelta, CPoint pt)
+BOOL CGLViewVBO::OnMouseWheel(UINT, short zDelta, CPoint pt)
 {
     ScreenToClient(&pt);
     Vec3 w = ScreenToWorld(pt);
@@ -872,7 +872,7 @@ BOOL CGLView::OnMouseWheel(UINT, short zDelta, CPoint pt)
     return TRUE;
 }
 
-void CGLView::BeginDrag(CPoint point, Drag mode)
+void CGLViewVBO::BeginDrag(CPoint point, Drag mode)
 {
     SetFocus();
     SetCapture();
@@ -880,7 +880,7 @@ void CGLView::BeginDrag(CPoint point, Drag mode)
     m_lastMouse = point;
 }
 
-void CGLView::EndDrag()
+void CGLViewVBO::EndDrag()
 {
     if (m_drag != Drag::None)
     {
@@ -889,30 +889,30 @@ void CGLView::EndDrag()
     }
 }
 
-void CGLView::OnLButtonDown(UINT, CPoint point) { BeginDrag(point, Drag::Pan); }
-void CGLView::OnLButtonUp(UINT, CPoint) { EndDrag(); }
-void CGLView::OnMButtonDown(UINT, CPoint point) { BeginDrag(point, Drag::Pan); }
-void CGLView::OnMButtonUp(UINT, CPoint) { EndDrag(); }
-void CGLView::OnRButtonDown(UINT, CPoint point)
+void CGLViewVBO::OnLButtonDown(UINT, CPoint point) { BeginDrag(point, Drag::Pan); }
+void CGLViewVBO::OnLButtonUp(UINT, CPoint) { EndDrag(); }
+void CGLViewVBO::OnMButtonDown(UINT, CPoint point) { BeginDrag(point, Drag::Pan); }
+void CGLViewVBO::OnMButtonUp(UINT, CPoint) { EndDrag(); }
+void CGLViewVBO::OnRButtonDown(UINT, CPoint point)
 {
     if (m_3d)
         BeginDrag(point, Drag::Orbit);
 }
-void CGLView::OnRButtonUp(UINT, CPoint) { EndDrag(); }
+void CGLViewVBO::OnRButtonUp(UINT, CPoint) { EndDrag(); }
 
-void CGLView::OnCaptureChanged(CWnd* pWnd)
+void CGLViewVBO::OnCaptureChanged(CWnd* pWnd)
 {
     m_drag = Drag::None;
     CView::OnCaptureChanged(pWnd);
 }
 
-void CGLView::OnLButtonDblClk(UINT, CPoint)
+void CGLViewVBO::OnLButtonDblClk(UINT, CPoint)
 {
     ZoomExtents();
     Invalidate(FALSE);
 }
 
-void CGLView::OnMouseMove(UINT, CPoint point)
+void CGLViewVBO::OnMouseMove(UINT, CPoint point)
 {
     int dx = point.x - m_lastMouse.x, dy = point.y - m_lastMouse.y;
     if (m_drag == Drag::Pan)

@@ -1,6 +1,6 @@
 #pragma once
 
-class CGLView;
+class CGLViewVBO;
 
 class CMainFrame : public CFrameWnd
 {
@@ -35,7 +35,7 @@ protected:
     DECLARE_MESSAGE_MAP()
 
 private:
-    CGLView* GetGLView();
+    CGLViewVBO* GetGLView();
     void ShowModeBoxes(bool is3D);
     void ShowNumber(UINT id, double value);
     bool ReadNumber(UINT id, double& value);

@@ -1,6 +1,6 @@
 #include "pch.h"
 #include "DxfDoc.h"
-#include "GLView.h"
+#include "GLView_VBO.h"
 #include "MainFrm.h"
 #include "ProgressDlg.h"
 #include "resource.h"
@@ -180,7 +180,7 @@ bool CDxfDoc::Is3DMode() const
 {
     POSITION pos = GetFirstViewPosition();
     while (pos)
-        if (const CGLView* view = DYNAMIC_DOWNCAST(CGLView, GetNextView(pos)))
+        if (const CGLViewVBO* view = DYNAMIC_DOWNCAST(CGLViewVBO, GetNextView(pos)))
             return view->Is3D();
     return false;
 }

@@ -90,7 +90,7 @@
     <ClInclude Include="DxfParser.h" />
     <ClInclude Include="DxfViewer.h" />
     <ClInclude Include="GLLoader.h" />
-    <ClInclude Include="GLView.h" />
+    <ClInclude Include="GLView_VBO.h" />
     <ClInclude Include="LeftView.h" />
     <ClInclude Include="LogoView.h" />
     <ClInclude Include="MainFrm.h" />
@@ -104,7 +104,7 @@
     <ClCompile Include="DxfParser.cpp" />
     <ClCompile Include="DxfViewer.cpp" />
     <ClCompile Include="GLLoader.cpp" />
-    <ClCompile Include="GLView.cpp" />
+    <ClCompile Include="GLView_VBO.cpp" />
     <ClCompile Include="LeftView.cpp" />
     <ClCompile Include="LogoView.cpp" />
     <ClCompile Include="MainFrm.cpp" />

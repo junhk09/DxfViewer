@@ -5,11 +5,11 @@
 
 class CDxfDoc;
 
-class CGLView : public CView
+class CGLViewVBO : public CView
 {
 protected:
-    CGLView() = default;
-    DECLARE_DYNCREATE(CGLView)
+    CGLViewVBO() = default;
+    DECLARE_DYNCREATE(CGLViewVBO)
 
 public:
     static constexpr double kIsoYaw = 45.0;

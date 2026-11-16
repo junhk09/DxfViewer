@@ -1,6 +1,6 @@
 #include "pch.h"
 #include "MainFrm.h"
-#include "GLView.h"
+#include "GLView_VBO.h"
 #include "LeftView.h"
 #include "LogoView.h"
 #include "resource.h"
@@ -64,14 +64,14 @@ BOOL CMainFrame::OnCreateClient(LPCREATESTRUCT, CCreateContext* pContext)
     return TRUE;
 }
 
-CGLView* CMainFrame::GetGLView()
+CGLViewVBO* CMainFrame::GetGLView()
 {
-    return DYNAMIC_DOWNCAST(CGLView, m_splitter.GetPane(0, 1));
+    return DYNAMIC_DOWNCAST(CGLViewVBO, m_splitter.GetPane(0, 1));
 }
 
 void CMainFrame::OnZoomExtents()
 {
-    if (CGLView* view = GetGLView())
+    if (CGLViewVBO* view = GetGLView())
     {
         view->ZoomExtents();
         view->Invalidate(FALSE);
@@ -80,7 +80,7 @@ void CMainFrame::OnZoomExtents()
 
 void CMainFrame::OnViewPreset(UINT id)
 {
-    CGLView* view = GetGLView();
+    CGLViewVBO* view = GetGLView();
     if (!view)
         return;
     switch (id)
@@ -88,55 +88,55 @@ void CMainFrame::OnViewPreset(UINT id)
     case ID_VIEW_TOP:   view->SetView(0, 0); break;
     case ID_VIEW_FRONT: view->SetView(0, -90); break;
     case ID_VIEW_RIGHT: view->SetView(-90, -90); break;
-    case ID_VIEW_ISO:   view->SetView(CGLView::kIsoYaw, CGLView::kIsoPitch); break;
+    case ID_VIEW_ISO:   view->SetView(CGLViewVBO::kIsoYaw, CGLViewVBO::kIsoPitch); break;
     }
 }
 
 void CMainFrame::OnMode2D()
 {
-    if (CGLView* view = GetGLView())
+    if (CGLViewVBO* view = GetGLView())
         view->SetMode3D(false);
 }
 
 void CMainFrame::OnMode3D()
 {
-    if (CGLView* view = GetGLView())
+    if (CGLViewVBO* view = GetGLView())
         view->SetMode3D(true);
 }
 
 void CMainFrame::OnUpdateMode2D(CCmdUI* pCmdUI)
 {
-    CGLView* view = GetGLView();
+    CGLViewVBO* view = GetGLView();
     pCmdUI->SetCheck(view && !view->Is3D());
 }
 
 void CMainFrame::OnUpdateMode3D(CCmdUI* pCmdUI)
 {
-    CGLView* view = GetGLView();
+    CGLViewVBO* view = GetGLView();
     pCmdUI->SetCheck(view && view->Is3D());
 }
 
 void CMainFrame::OnPathTravel()
 {
-    if (CGLView* view = GetGLView())
+    if (CGLViewVBO* view = GetGLView())
         view->ToggleTravel();
 }
 
 void CMainFrame::OnPathSimulate()
 {
-    if (CGLView* view = GetGLView())
+    if (CGLViewVBO* view = GetGLView())
         view->ToggleSimulation();
 }
 
 void CMainFrame::OnUpdatePathTravel(CCmdUI* pCmdUI)
 {
-    CGLView* view = GetGLView();
+    CGLViewVBO* view = GetGLView();
     pCmdUI->SetCheck(view && view->IsTravelShown());
 }
 
 void CMainFrame::OnUpdatePathSimulate(CCmdUI* pCmdUI)
 {
-    CGLView* view = GetGLView();
+    CGLViewVBO* view = GetGLView();
     pCmdUI->SetCheck(view && view->IsSimulating());
 }
 
@@ -152,7 +152,7 @@ void CMainFrame::ShowModeBoxes(bool is3D)
 
 void CMainFrame::OnUpdateModeHint(CCmdUI* pCmdUI)
 {
-    CGLView* view = GetGLView();
+    CGLViewVBO* view = GetGLView();
     ShowModeBoxes(view && view->Is3D());
     const wchar_t* text = view && view->Is3D()
         ? L"오른쪽 드래그: 회전  왼쪽: 이동  휠: 확대  F5~F8: 표준 뷰  Home: 처음 상태로  로그 더블클릭: 확대"
@@ -162,7 +162,7 @@ void CMainFrame::OnUpdateModeHint(CCmdUI* pCmdUI)
 
 void CMainFrame::OnUpdateLiftGap(CCmdUI* pCmdUI)
 {
-    CGLView* view = GetGLView();
+    CGLViewVBO* view = GetGLView();
     pCmdUI->Enable(view && view->Is3D());
 }
 

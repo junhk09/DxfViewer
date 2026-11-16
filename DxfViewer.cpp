@@ -1,7 +1,7 @@
 #include "pch.h"
 #include "DxfViewer.h"
 #include "DxfDoc.h"
-#include "GLView.h"
+#include "GLView_VBO.h"
 #include "MainFrm.h"
 
 CDxfViewerApp theApp;
@@ -18,7 +18,7 @@ BOOL CDxfViewerApp::InitInstance()
     CWinApp::InitInstance();
 
     AddDocTemplate(new CSingleDocTemplate(IDR_MAINFRAME,
-        RUNTIME_CLASS(CDxfDoc), RUNTIME_CLASS(CMainFrame), RUNTIME_CLASS(CGLView)));
+        RUNTIME_CLASS(CDxfDoc), RUNTIME_CLASS(CMainFrame), RUNTIME_CLASS(CGLViewVBO)));
 
     CCommandLineInfo cmdInfo;
     ParseCommandLine(cmdInfo);
