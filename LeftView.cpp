@@ -21,7 +21,6 @@ BEGIN_MESSAGE_MAP(CLeftView, CView)
     ON_BN_CLICKED(IDC_RANK_SAME, &CLeftView::OnRankSame)
     ON_NOTIFY(LVN_GETDISPINFO, IDC_LOG_LIST, &CLeftView::OnLogGetDispInfo)
     ON_NOTIFY(NM_CUSTOMDRAW, IDC_LOG_LIST, &CLeftView::OnLogCustomDraw)
-    ON_NOTIFY(LVN_ITEMCHANGED, IDC_LOG_LIST, &CLeftView::OnLogItemChanged)
     ON_NOTIFY(NM_DBLCLK, IDC_LOG_LIST, &CLeftView::OnLogDoubleClick)
     ON_NOTIFY(TCN_SELCHANGE, IDC_LOG_FILTER, &CLeftView::OnLogFilterChanged)
     ON_BN_CLICKED(IDC_LOG_SAVE, &CLeftView::OnSaveLog)
@@ -515,32 +514,21 @@ void CLeftView::OnLogGetDispInfo(NMHDR* pNMHDR, LRESULT* pResult)
     wcsncpy_s(di->item.pszText, di->item.cchTextMax, text.c_str(), _TRUNCATE);
 }
 
-void CLeftView::OnLogItemChanged(NMHDR* pNMHDR, LRESULT* pResult)
-{
-    *pResult = 0;
-    auto* nm = reinterpret_cast<NMLISTVIEW*>(pNMHDR);
-    if (m_filling || !(nm->uChanged & LVIF_STATE) || ((nm->uNewState ^ nm->uOldState) & LVIS_SELECTED) == 0)
-        return;
-    int index = LogIndexOfRow(m_log.GetNextItem(-1, LVNI_SELECTED));
-    if (index != GetDocument()->m_selectedLog)
-        SelectLog(index, false);
-}
-
 void CLeftView::OnLogDoubleClick(NMHDR* pNMHDR, LRESULT* pResult)
 {
     *pResult = 0;
     int index = LogIndexOfRow(reinterpret_cast<NMITEMACTIVATE*>(pNMHDR)->iItem);
     if (index >= 0)
-        SelectLog(index, true);
+        SelectLog(index);
 }
 
-void CLeftView::SelectLog(int logIndex, bool zoom)
+void CLeftView::SelectLog(int logIndex)
 {
     CDxfDoc* doc = GetDocument();
     const DxfDrawing& dwg = doc->m_dwg;
     doc->ClearSelection();
     doc->m_selectedLog = logIndex;
-    doc->UpdateAllViews(this, zoom ? kHintSelectionZoom : kHintSelection);
+    doc->UpdateAllViews(this, kHintSelection);
 
     if (logIndex < 0 || logIndex >= static_cast<int>(dwg.log.size()))
     {

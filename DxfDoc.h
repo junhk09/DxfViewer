@@ -8,8 +8,7 @@ enum UpdateHint : LPARAM
     kHintReload = 0,
     kHintVisibility = 1,
     kHintCutOrder = 2,
-    kHintSelection = 3,
-    kHintSelectionZoom = 4,
+    kHintSelection = 3,      // 로그를 더블클릭함: 그 로그의 도형을 강조하고 확대
 };
 
 class CDxfDoc : public CDocument

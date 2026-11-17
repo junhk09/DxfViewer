@@ -76,7 +76,7 @@ private:
     void BuildBuffers();
     void BuildTravel();
     void BuildSelection();
-    void FocusSelection(bool zoom);
+    void FocusSelection();
     void ZoomToBox(const Vec3& lo, const Vec3& hi, double fill);
     void Render();
     void AdvanceSimulation();

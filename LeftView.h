@@ -27,7 +27,6 @@ protected:
     afx_msg void OnRankSame();
     afx_msg void OnLogGetDispInfo(NMHDR* pNMHDR, LRESULT* pResult);
     afx_msg void OnLogCustomDraw(NMHDR* pNMHDR, LRESULT* pResult);
-    afx_msg void OnLogItemChanged(NMHDR* pNMHDR, LRESULT* pResult);
     afx_msg void OnLogDoubleClick(NMHDR* pNMHDR, LRESULT* pResult);
     afx_msg void OnLogFilterChanged(NMHDR* pNMHDR, LRESULT* pResult);
     afx_msg void OnSaveLog();
@@ -42,7 +41,7 @@ private:
     void ApplyLogFilter();
     void ShowLogSummary();
     int LogIndexOfRow(int row) const;
-    void SelectLog(int logIndex, bool zoom);
+    void SelectLog(int logIndex);
     void ShowPage(int page);
     void Layout();
 

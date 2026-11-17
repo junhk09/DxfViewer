@@ -692,11 +692,11 @@ void CGLViewVBO::OnDraw(CDC* pDC)
 
 void CGLViewVBO::OnUpdate(CView*, LPARAM lHint, CObject*)
 {
-    if (lHint == kHintSelection || lHint == kHintSelectionZoom)
+    if (lHint == kHintSelection)
     {
         if (m_glOk)
             BuildSelection();
-        FocusSelection(lHint == kHintSelectionZoom);
+        FocusSelection();
         Invalidate(FALSE);
         return;
     }
@@ -809,23 +809,10 @@ void CGLViewVBO::BuildSelection()
     glBindBuffer(GL_ARRAY_BUFFER, 0);
 }
 
-void CGLViewVBO::FocusSelection(bool zoom)
+void CGLViewVBO::FocusSelection()
 {
-    if (!m_hasSelection)
-        return;
-    if (zoom)
-    {
-        ZoomToBox(m_selLo, m_selHi, 0.5);
-        return;
-    }
-    Vec3 c{ (m_selLo.x + m_selHi.x) / 2, (m_selLo.y + m_selHi.y) / 2, (m_selLo.z + m_selHi.z) / 2 };
-    Vec3 d{ c.x - m_target.x, c.y - m_target.y, c.z - m_target.z };
-    double r[3][3];
-    Rotation(r);
-    double u = (r[0][0] * d.x + r[0][1] * d.y + r[0][2] * d.z) * m_scale;
-    double v = (r[1][0] * d.x + r[1][1] * d.y + r[1][2] * d.z) * m_scale;
-    if (std::fabs(u) > m_w * 0.45 || std::fabs(v) > m_h * 0.45)
-        m_target = c;
+    if (m_hasSelection)
+        ZoomToBox(m_selLo, m_selHi, 0.5);   // 강조한 도형이 화면의 절반을 차지하도록 확대
 }
 
 void CGLViewVBO::SetView(double yawDeg, double pitchDeg)
