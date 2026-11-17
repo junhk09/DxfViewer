@@ -9,7 +9,7 @@ public:
     double x = 0, y = 0, z = 0;
 };
 
-enum class EntType { Line, Circle, Arc, Point };   // 읽는 엔티티는 LINE, CIRCLE, ARC, POINT 네 가지뿐 (나머지는 로그에 "해석 불가")
+enum class EntType { Line, Circle, Arc, Ellipse, Polyline, Spline, Face, Point };
 
 class DxfEntity
 {
