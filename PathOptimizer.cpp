@@ -98,7 +98,7 @@ public:
     bool Ring(int cx, int cy, int r, F&& f)
     {
         bool any = false;
-        auto visit = [&](int x, int y) {
+        auto visit = [&](int x, int y) { // 람다함수, 바깥 변수 전부 참조로 씀
             if (std::vector<int>* cell = Cell(x, y))
             {
                 any = true;
@@ -156,27 +156,27 @@ void SetEnds(Step& s, const DxfEntity& e)
 std::vector<Step> NearestNeighbor(const std::vector<DxfEntity>& entities, const std::vector<int>& ids,
                                   const TravelModel& cost, Vec3 pos, Progress& progress)
 {
-    const int n = static_cast<int>(ids.size());
-    std::vector<uint8_t> closed(n);
+	const int n = static_cast<int>(ids.size()); // size_t(8 bytes) → int(4 bytes) 형변환, 경고 없애기 위함.
+	std::vector<uint8_t> closed(n); 
     std::vector<Vec3> ptPos;
     std::vector<int> ptCand, ptVertex;
     Vec3 lo = entities[ids[0]].pts[0], hi = lo;
     auto addPoint = [&](const Vec3& p, int cand, int vertex) {
-        ptPos.push_back(p);
-        ptCand.push_back(cand);
-        ptVertex.push_back(vertex);
-        Extend(lo, hi, p);
+        ptPos.push_back(p); //점의 좌표
+        ptCand.push_back(cand); //이 점이 속한 도형 번호
+		ptVertex.push_back(vertex); // 열린 도형이면 0:시작점, 1:끝점, 닫힌 도형이면 꼭짓점 번호
+		Extend(lo, hi, p); // 후보 점들의 최소/최대 좌표를 구함.
     };
     for (int i = 0; i < n; ++i)
     {
         const auto& pts = entities[ids[i]].pts;
-        closed[i] = IsClosed(entities[ids[i]]); // bool→uint8_t 자동 형변환 true->1, false->0
-        if (closed[i])
+        closed[i] = IsClosed(entities[ids[i]]); // bool→uint8_t 자동 형변환(C++기본 기능이라함) true->1, false->0
+		if (closed[i]) // 닫힌 도형이면, 후보로 넣는 점의 개수가 달라짐.
         {
             for (size_t k = 0; k + 1 < pts.size(); ++k)
                 addPoint(pts[k], i, static_cast<int>(k));
         }
-        else
+        else // 열린 도형이면, 시작점, 끝점만 넣는다.
         {
             addPoint(pts.front(), i, 0);
             addPoint(pts.back(), i, 1);
@@ -188,7 +188,7 @@ std::vector<Step> NearestNeighbor(const std::vector<DxfEntity>& entities, const 
 
     std::vector<uint8_t> used(n, 0);
     std::vector<Step> steps;
-    steps.reserve(n);
+    steps.reserve(n); //n만큼 공간을 미리 할당.
     for (int s = 0; s < n; ++s)
     {
         double best = std::numeric_limits<double>::max();
@@ -221,7 +221,7 @@ std::vector<Step> NearestNeighbor(const std::vector<DxfEntity>& entities, const 
         SetEnds(step, entities[step.entity]);
         pos = step.exit;
         steps.push_back(step);
-        if ((s & 255) == 0)
+        if ((s % 256) == 0)
             progress(L"최근접 이웃", static_cast<double>(s) / n);
     }
     return steps;
