@@ -88,8 +88,6 @@ private:
     void Rotation(double r[3][3]) const;
     void BuildMatrix(double kx, double ky, const Vec3& shift, float out[16]) const;
     Vec3 ScreenToWorld(CPoint p) const;
-    void CountFrame();
-    void ShowStatus();
 
     HDC m_hdc = nullptr;
     HGLRC m_hrc = nullptr;
@@ -130,10 +128,4 @@ private:
     std::vector<SimSegment> m_simSegs;
     double m_simProgress = 0;
     LONGLONG m_simLastTick = 0;
-
-    CString m_coordText;          // 상태 표시줄의 좌표 문자열 (FPS와 합쳐서 표시)
-    LONGLONG m_fpsStart = 0;      // 이번 FPS 측정 구간이 시작된 시각 (QPC)
-    LONGLONG m_lastFrame = 0;     // 마지막으로 그린 시각 (QPC)
-    int m_fpsFrames = 0;          // 이번 구간에 그린 장수
-    double m_fps = 0;             // 마지막으로 계산한 FPS (0 = 측정 중 아님)
 };

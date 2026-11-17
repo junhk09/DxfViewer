@@ -629,49 +629,6 @@ void CGLViewVBO::Render()
         glBindFramebuffer(GL_FRAMEBUFFER, 0);
     }
     SwapBuffers(m_hdc);
-    CountFrame();
-}
-
-// 화면을 한 장 그릴 때마다 호출. 최근 0.5초 동안 그린 장수로 FPS를 계산한다.
-void CGLViewVBO::CountFrame()
-{
-    LARGE_INTEGER now, frequency;
-    QueryPerformanceCounter(&now);
-    QueryPerformanceFrequency(&frequency);
-    const LONGLONG halfSecond = frequency.QuadPart / 2;
-    if (m_lastFrame == 0 || now.QuadPart - m_lastFrame > halfSecond)
-    {
-        m_fpsStart = now.QuadPart;     // 0.5초 넘게 쉬었다가 다시 그리기 시작함 → 측정을 새로 시작
-        m_fpsFrames = 0;
-        m_fps = 0;                     //   아직 계산 전이라 "FPS -"로 표시
-    }
-    else
-    {
-        ++m_fpsFrames;                 // 직전 장 이후 한 장 더 그림
-        double elapsed = static_cast<double>(now.QuadPart - m_fpsStart) / frequency.QuadPart;
-        if (elapsed >= 0.5)            // 0.5초가 모이면
-        {
-            m_fps = m_fpsFrames / elapsed;   //   FPS = 그린 장수 ÷ 걸린 시간
-            m_fpsStart = now.QuadPart;       //   다음 구간 시작
-            m_fpsFrames = 0;
-        }
-    }
-    m_lastFrame = now.QuadPart;
-    ShowStatus();
-}
-
-// 상태 표시줄 = 좌표 + FPS
-void CGLViewVBO::ShowStatus()
-{
-    if (CMainFrame* frame = DYNAMIC_DOWNCAST(CMainFrame, AfxGetMainWnd()))
-    {
-        CString text;
-        if (m_fps > 0)
-            text.Format(L"%s    FPS %.0f", m_coordText.GetString(), m_fps);
-        else
-            text.Format(L"%s    FPS -", m_coordText.GetString());
-        frame->SetCoordText(text);
-    }
 }
 
 void CGLViewVBO::OnDraw(CDC* pDC)
@@ -963,10 +920,14 @@ void CGLViewVBO::OnMouseMove(UINT, CPoint point)
     }
     m_lastMouse = point;
 
-    Vec3 w = ScreenToWorld(point);
-    if (m_3d)
-        m_coordText.Format(L"X: %.4f  Y: %.4f  Z: %.4f", w.x, w.y, w.z);
-    else
-        m_coordText.Format(L"X: %.4f  Y: %.4f", w.x, w.y);
-    ShowStatus();
+    if (CMainFrame* frame = DYNAMIC_DOWNCAST(CMainFrame, AfxGetMainWnd()))
+    {
+        Vec3 w = ScreenToWorld(point);
+        CString text;
+        if (m_3d)
+            text.Format(L"X: %.4f  Y: %.4f  Z: %.4f", w.x, w.y, w.z);
+        else
+            text.Format(L"X: %.4f  Y: %.4f", w.x, w.y);
+        frame->SetCoordText(text);
+    }
 }
