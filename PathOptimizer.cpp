@@ -3,6 +3,7 @@
 
 #include <algorithm>
 #include <chrono>
+#include <cstdint>
 #include <limits>
 #include <map>
 
@@ -156,7 +157,7 @@ std::vector<Step> NearestNeighbor(const std::vector<DxfEntity>& entities, const 
                                   const TravelModel& cost, Vec3 pos, Progress& progress)
 {
     const int n = static_cast<int>(ids.size());
-    std::vector<char> closed(n);
+    std::vector<uint8_t> closed(n);
     std::vector<Vec3> ptPos;
     std::vector<int> ptCand, ptVertex;
     Vec3 lo = entities[ids[0]].pts[0], hi = lo;
@@ -169,7 +170,7 @@ std::vector<Step> NearestNeighbor(const std::vector<DxfEntity>& entities, const 
     for (int i = 0; i < n; ++i)
     {
         const auto& pts = entities[ids[i]].pts;
-        closed[i] = IsClosed(entities[ids[i]]);
+        closed[i] = IsClosed(entities[ids[i]]); // bool→uint8_t 자동 형변환 true->1, false->0
         if (closed[i])
         {
             for (size_t k = 0; k + 1 < pts.size(); ++k)
@@ -185,7 +186,7 @@ std::vector<Step> NearestNeighbor(const std::vector<DxfEntity>& entities, const 
     for (int p = 0; p < static_cast<int>(ptPos.size()); ++p)
         grid.Add(ptPos[p], p);
 
-    std::vector<char> used(n, 0);
+    std::vector<uint8_t> used(n, 0);
     std::vector<Step> steps;
     steps.reserve(n);
     for (int s = 0; s < n; ++s)
