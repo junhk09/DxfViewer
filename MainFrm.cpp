@@ -44,7 +44,7 @@ int CMainFrame::OnCreate(LPCREATESTRUCT lpCreateStruct)
         return -1;
     if (!m_statusBar.Create(this) || !m_statusBar.SetIndicators(indicators, _countof(indicators)))
         return -1;
-    m_statusBar.SetPaneInfo(0, ID_INDICATOR_COORD, SBPS_NORMAL, ScaleDpi(330));
+    m_statusBar.SetPaneInfo(0, ID_INDICATOR_COORD, SBPS_NORMAL, ScaleDpi(430));
     DragAcceptFiles(TRUE);
     return 0;
 }
