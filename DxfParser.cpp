@@ -153,134 +153,13 @@ int SegmentsFor(double sweep)
 }
 
 void AppendArc(std::vector<Vec3>& out, const Ocs& ocs, double cx, double cy, double z,
-               double r, double a0, double sweep, bool skipFirst)
+               double r, double a0, double sweep)
 {
-    int n = SegmentsFor(sweep);
-    for (int i = skipFirst ? 1 : 0; i <= n; ++i)
-    {
-        double a = a0 + sweep * i / n;
-        out.push_back(ocs.ToWcs(cx + r * std::cos(a), cy + r * std::sin(a), z));
-    }
-}
-
-class PVert
-{
-public:
-    double x = 0, y = 0, z = 0, bulge = 0;
-};
-
-void AppendBulgePolyline(std::vector<Vec3>& out, const Ocs& ocs, const std::vector<PVert>& v, bool closed, double z)
-{
-    if (v.empty())
-        return;
-    out.push_back(ocs.ToWcs(v[0].x, v[0].y, z + v[0].z));
-    size_t segs = closed ? v.size() : v.size() - 1;
-    for (size_t i = 0; i < segs; ++i)
-    {
-        const PVert& a = v[i];
-        const PVert& b = v[(i + 1) % v.size()];
-        double dx = b.x - a.x, dy = b.y - a.y;
-        double chord = std::hypot(dx, dy);
-        if (std::fabs(a.bulge) < 1e-10 || chord < 1e-12)
-        {
-            out.push_back(ocs.ToWcs(b.x, b.y, z + b.z));
-            continue;
-        }
-        double theta = 4 * std::atan(a.bulge);
-        double h = chord / (2 * std::tan(theta / 2));
-        double cx = (a.x + b.x) / 2 - dy / chord * h;
-        double cy = (a.y + b.y) / 2 + dx / chord * h;
-        double r = std::hypot(a.x - cx, a.y - cy);
-        double a0 = std::atan2(a.y - cy, a.x - cx);
-        AppendArc(out, ocs, cx, cy, z, r, a0, theta, true);
-    }
-}
-
-Vec3 DeBoor(int p, const std::vector<double>& U, const std::vector<Vec3>& P, const std::vector<double>& W, double t)
-{
-    int n = static_cast<int>(P.size());
-    int k = p;
-    while (k < n - 1 && t >= U[k + 1])
-        ++k;
-    std::vector<double> dx(p + 1), dy(p + 1), dz(p + 1), dw(p + 1);
-    for (int j = 0; j <= p; ++j)
-    {
-        int idx = k - p + j;
-        dx[j] = P[idx].x * W[idx];
-        dy[j] = P[idx].y * W[idx];
-        dz[j] = P[idx].z * W[idx];
-        dw[j] = W[idx];
-    }
-    for (int r = 1; r <= p; ++r)
-    {
-        for (int j = p; j >= r; --j)
-        {
-            int i = k - p + j;
-            double den = U[i + p - r + 1] - U[i];
-            double a = den > 1e-15 ? (t - U[i]) / den : 0.0;
-            dx[j] = (1 - a) * dx[j - 1] + a * dx[j];
-            dy[j] = (1 - a) * dy[j - 1] + a * dy[j];
-            dz[j] = (1 - a) * dz[j - 1] + a * dz[j];
-            dw[j] = (1 - a) * dw[j - 1] + a * dw[j];
-        }
-    }
-    if (std::fabs(dw[p]) < 1e-15)
-        return { dx[p], dy[p], dz[p] };
-    return { dx[p] / dw[p], dy[p] / dw[p], dz[p] / dw[p] };
-}
-
-void AppendSpline(std::vector<Vec3>& out, const Record& r)
-{
-    int degree = Int(r, 71, 3);
-    std::vector<double> knots, weights;
-    std::vector<Vec3> ctrl, fit;
-    for (const auto& g : r.groups)
-    {
-        double v = _wtof(g.second.c_str());
-        switch (g.first)
-        {
-        case 40: knots.push_back(v); break;
-        case 41: weights.push_back(v); break;
-        case 10: ctrl.push_back({ v, 0, 0 }); break;
-        case 20: if (!ctrl.empty()) ctrl.back().y = v; break;
-        case 30: if (!ctrl.empty()) ctrl.back().z = v; break;
-        case 11: fit.push_back({ v, 0, 0 }); break;
-        case 21: if (!fit.empty()) fit.back().y = v; break;
-        case 31: if (!fit.empty()) fit.back().z = v; break;
-        }
-    }
-    int n = static_cast<int>(ctrl.size());
-    if (n >= 2 && degree >= 1 && degree < n && static_cast<int>(knots.size()) == n + degree + 1)
-    {
-        if (static_cast<int>(weights.size()) != n)
-            weights.assign(n, 1.0);
-        double t0 = knots[degree], t1 = knots[n];
-        int samples = std::clamp(n * 16, 32, 4000);
-        for (int s = 0; s <= samples; ++s)
-            out.push_back(DeBoor(degree, knots, ctrl, weights, t0 + (t1 - t0) * s / samples));
-        return;
-    }
-    for (const Vec3& p : (n >= 2 ? ctrl : fit))
-        out.push_back(p);
-}
-
-void AppendEllipse(std::vector<Vec3>& out, const Record& r)
-{
-    Vec3 c{ Dbl(r, 10), Dbl(r, 20), Dbl(r, 30) };
-    Vec3 major{ Dbl(r, 11), Dbl(r, 21), Dbl(r, 31) };
-    double ratio = Dbl(r, 40, 1);
-    Vec3 minor = Cross(Normalize(Extrusion(r)), major);
-    double t0 = Dbl(r, 41, 0), t1 = Dbl(r, 42, 2 * kPi);
-    double sweep = t1 - t0;
-    while (sweep <= 0)
-        sweep += 2 * kPi;
     int n = SegmentsFor(sweep);
     for (int i = 0; i <= n; ++i)
     {
-        double t = t0 + sweep * i / n;
-        out.push_back({ c.x + major.x * std::cos(t) + minor.x * ratio * std::sin(t),
-                        c.y + major.y * std::cos(t) + minor.y * ratio * std::sin(t),
-                        c.z + major.z * std::cos(t) + minor.z * ratio * std::sin(t) });
+        double a = a0 + sweep * i / n;
+        out.push_back(ocs.ToWcs(cx + r * std::cos(a), cy + r * std::sin(a), z));
     }
 }
 
@@ -297,12 +176,6 @@ std::wstring Format(const wchar_t* fmt, ...)
 std::wstring Pt(const Record& r, int xCode)
 {
     return Format(L"(%.4f, %.4f, %.4f)", Dbl(r, xCode), Dbl(r, xCode + 10), Dbl(r, xCode + 20));
-}
-
-int CountCode(const Record& r, int code)
-{
-    return static_cast<int>(std::count_if(r.groups.begin(), r.groups.end(),
-                                          [code](const Group& g) { return g.first == code; }));
 }
 
 size_t ParseEntity(const std::vector<Record>& recs, size_t i, std::vector<DxfEntity>& out,
@@ -358,125 +231,22 @@ size_t ParseEntity(const std::vector<Record>& recs, size_t i, std::vector<DxfEnt
             while (sweep <= 0)
                 sweep += 2 * kPi;
         }
-        AppendArc(e.pts, Ocs(Extrusion(r)), Dbl(r, 10), Dbl(r, 20), Dbl(r, 30), Dbl(r, 40), a0, sweep, false);
+        AppendArc(e.pts, Ocs(Extrusion(r)), Dbl(r, 10), Dbl(r, 20), Dbl(r, 30), Dbl(r, 40), a0, sweep);
         entry.detail += Format(L"중심 %s  반지름 %.4f", Pt(r, 10).c_str(), Dbl(r, 40));
         if (t == L"ARC")
             entry.detail += Format(L"  각도 %.2f° ~ %.2f°", Dbl(r, 50), Dbl(r, 51));
     }
-    else if (t == L"ELLIPSE")
-    {
-        e.type = EntType::Ellipse;
-        AppendEllipse(e.pts, r);
-        entry.detail += Format(L"중심 %s  장축 %s  비율 %.4f", Pt(r, 10).c_str(), Pt(r, 11).c_str(), Dbl(r, 40, 1));
-    }
-    else if (t == L"LWPOLYLINE")
-    {
-        e.type = EntType::Polyline;
-        std::vector<PVert> v;
-        for (const auto& g : r.groups)
-        {
-            if (g.first == 10)
-                v.push_back({ _wtof(g.second.c_str()), 0, 0 });
-            else if (g.first == 20 && !v.empty())
-                v.back().y = _wtof(g.second.c_str());
-            else if (g.first == 42 && !v.empty())
-                v.back().bulge = _wtof(g.second.c_str());
-        }
-        AppendBulgePolyline(e.pts, Ocs(Extrusion(r)), v, (Int(r, 70) & 1) != 0, Dbl(r, 38));
-        int arcs = static_cast<int>(std::count_if(v.begin(), v.end(), [](const PVert& p) { return p.bulge != 0; }));
-        entry.detail += Format(L"꼭짓점 %d개  %s  호 구간 %d개  고도 %.4f", static_cast<int>(v.size()),
-                               (Int(r, 70) & 1) ? L"닫힘" : L"열림", arcs, Dbl(r, 38));
-    }
-    else if (t == L"POLYLINE")
-    {
-        int flags = Int(r, 70);
-        std::vector<PVert> v;
-        size_t j = i + 1;
-        for (; j < recs.size() && recs[j].type == L"VERTEX"; ++j)
-        {
-            if (Int(recs[j], 70) & (16 | 128))
-                continue;
-            v.push_back({ Dbl(recs[j], 10), Dbl(recs[j], 20), Dbl(recs[j], 30), Dbl(recs[j], 42) });
-        }
-        last = (j < recs.size() && recs[j].type == L"SEQEND") ? j : j - 1;
-        if (flags & (16 | 64))
-        {
-            entry.detail += Format(L"메시/폴리페이스  VERTEX %d개", static_cast<int>(j - i - 1));
-            entry.drawn = false;
-            return last;
-        }
-        entry.detail += Format(L"%s  꼭짓점 %d개  %s", (flags & 8) ? L"3D" : L"2D", static_cast<int>(v.size()),
-                               (flags & 1) ? L"닫힘" : L"열림");
-        e.type = EntType::Polyline;
-        if (flags & 8)
-        {
-            for (auto& p : v)
-                p.bulge = 0;
-            AppendBulgePolyline(e.pts, Ocs({ 0, 0, 1 }), v, (flags & 1) != 0, 0);
-        }
-        else
-        {
-            for (auto& p : v)
-                p.z = 0;
-            AppendBulgePolyline(e.pts, Ocs(Extrusion(r)), v, (flags & 1) != 0, Dbl(r, 30));
-        }
-    }
-    else if (t == L"SPLINE")
-    {
-        e.type = EntType::Spline;
-        AppendSpline(e.pts, r);
-        entry.detail += Format(L"차수 %d  제어점 %d개  맞춤점 %d개  매듭 %d개", Int(r, 71, 3),
-                               CountCode(r, 10), CountCode(r, 11), CountCode(r, 40));
-    }
-    else if (t == L"SOLID" || t == L"TRACE" || t == L"3DFACE")
-    {
-        e.type = EntType::Face;
-        Vec3 p[4] = { { Dbl(r, 10), Dbl(r, 20), Dbl(r, 30) }, { Dbl(r, 11), Dbl(r, 21), Dbl(r, 31) },
-                      { Dbl(r, 12), Dbl(r, 22), Dbl(r, 32) }, { Dbl(r, 13), Dbl(r, 23), Dbl(r, 33) } };
-        entry.detail += Format(L"꼭짓점 %s %s %s %s", Pt(r, 10).c_str(), Pt(r, 11).c_str(),
-                               Pt(r, 12).c_str(), Pt(r, 13).c_str());
-        if (t == L"3DFACE")
-        {
-            e.pts = { p[0], p[1], p[2], p[3], p[0] };
-        }
-        else
-        {
-            Ocs ocs(Extrusion(r));
-            double z = Dbl(r, 30);
-            for (int k : { 0, 1, 3, 2, 0 })
-                e.pts.push_back(ocs.ToWcs(p[k].x, p[k].y, z));
-        }
-    }
-    else if (t == L"INSERT" || t == L"DIMENSION")
+    else                                                 // 그 밖의 엔티티 전부: 그릴 수 없음 → 로그에 "해석 불가"만 남김
     {
         entry.drawn = false;
-        entry.detail += Format(L"블록 %s  위치 %s  (블록은 그리지 않음)", Str(r, 2).c_str(), Pt(r, 10).c_str());
-        if (t == L"INSERT" && Int(r, 66) == 1)
-        {
+        entry.detail = L"해석 불가";
+        if (t == L"POLYLINE" || (t == L"INSERT" && Int(r, 66) == 1))   // 뒤에 VERTEX / ATTRIB … SEQEND가 딸려 오는 종류는
+        {                                                               //   그 레코드들까지 이 한 줄로 묶어서 건너뜀
             size_t j = i + 1;
-            while (j < recs.size() && recs[j].type == L"ATTRIB")
+            while (j < recs.size() && (recs[j].type == L"VERTEX" || recs[j].type == L"ATTRIB"))
                 ++j;
             last = (j < recs.size() && recs[j].type == L"SEQEND") ? j : j - 1;
         }
-        return last;
-    }
-    else
-    {
-        entry.drawn = false;
-        if (t == L"TEXT" || t == L"ATTDEF")
-            entry.detail += Format(L"내용 \"%s\"  위치 %s  높이 %.4f", Str(r, 1).c_str(), Pt(r, 10).c_str(), Dbl(r, 40));
-        else if (t == L"MTEXT")
-        {
-            std::wstring text;
-            for (const auto& g : r.groups)
-                if (g.first == 3 || g.first == 1)
-                    text += g.second;
-            entry.detail += Format(L"내용 \"%s\"  위치 %s  높이 %.4f", text.c_str(), Pt(r, 10).c_str(), Dbl(r, 40));
-        }
-        else if (t == L"HATCH")
-            entry.detail += Format(L"패턴 %s  경계 %d개", Str(r, 2).c_str(), Int(r, 91));
-        else
-            entry.detail += L"뷰어에서 그리지 않는 엔티티";
         return last;
     }
 
