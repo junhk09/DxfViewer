@@ -72,7 +72,8 @@ double Dist(const Vec3& a, const Vec3& b)
 
 bool IsVisible(const DxfDrawing& dwg, const DxfEntity& e)
 {
-    return e.layerIndex >= 0 && dwg.layers[e.layerIndex].visible && !e.pts.empty();
+    int k = dwg.FindLayer(e.layer);
+    return k >= 0 && dwg.layers[k].visible && !e.pts.empty();
 }
 
 std::vector<Vec3> TravelPath(const Vec3& a, const Vec3& b, const TravelModel& model)
@@ -85,7 +86,7 @@ std::vector<Vec3> TravelPath(const Vec3& a, const Vec3& b, const TravelModel& mo
 
 unsigned int EntityRgb(const DxfDrawing& dwg, const DxfEntity& e)
 {
-    int aci = e.color == 256 ? dwg.layers[e.layerIndex].color : e.color;
+    int aci = e.color == 256 ? dwg.layers[dwg.FindLayer(e.layer)].color : e.color;
     aci = std::abs(aci);
     if (aci < 1 || aci > 255)
         aci = 7;
@@ -336,8 +337,8 @@ void CGLViewVBO::BuildBuffers()
 
     std::vector<std::vector<const DxfEntity*>> byLayer(dwg.layers.size());
     for (const DxfEntity& e : dwg.entities)
-        if (e.layerIndex >= 0)
-            byLayer[e.layerIndex].push_back(&e);
+        if (int k = dwg.FindLayer(e.layer); k >= 0)
+            byLayer[k].push_back(&e);
 
     std::vector<float> v;
     for (size_t layer = 0; layer < byLayer.size(); ++layer)

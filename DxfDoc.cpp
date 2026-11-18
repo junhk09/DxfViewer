@@ -106,7 +106,7 @@ void CDxfDoc::OnPathOptimize()
         double top = 0;                                                  // 보이는 도형 중 가장 높은 z
         bool any = false;                                                // 점을 하나라도 봤는지 (첫 점으로 top을 시작하려고)
         for (const DxfEntity& e : m_fileOrder)                           // 원본 순서의 모든 도형 중
-            if (e.layerIndex >= 0 && e.layerIndex < static_cast<int>(m_dwg.layers.size()) && m_dwg.layers[e.layerIndex].visible)   // 레이어 번호가 올바르고 보이는 도형만
+            if (int k = m_dwg.FindLayer(e.layer); k >= 0 && m_dwg.layers[k].visible)   // 레이어 이름으로 찾아서, 있고 보이는 도형만
                 for (const Vec3& p : e.pts)                              //   점마다
                 {
                     top = any ? std::max(top, p.z) : p.z;                //   첫 점이면 그 z로 시작, 아니면 더 큰 쪽

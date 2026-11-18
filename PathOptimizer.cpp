@@ -19,9 +19,10 @@ double Dist(const Vec3& a, const Vec3& b)
     return std::sqrt(dx * dx + dy * dy + dz * dz);
 }
 
-bool IsVisible(const DxfEntity& e, const std::vector<DxfLayer>& layers)
+bool IsVisible(const DxfEntity& e, const DxfDrawing& dwg)
 {
-    return e.layerIndex >= 0 && e.layerIndex < static_cast<int>(layers.size()) && layers[e.layerIndex].visible;
+    int k = dwg.FindLayer(e.layer);
+    return k >= 0 && dwg.layers[k].visible;
 }
 
 bool IsClosed(const DxfEntity& e)
@@ -270,10 +271,10 @@ CutOrderReport OptimizeCutOrder(DxfDrawing& dwg, const Vec3& start, const CutOrd
         const DxfEntity& e = dwg.entities[i];
         if (e.pts.empty())
             continue;
-        if (!IsVisible(e, dwg.layers))
+        if (!IsVisible(e, dwg))
             hidden.push_back(i);
         else
-            groups[options.layerRank ? (*options.layerRank)[e.layerIndex] : 0].push_back(i);
+            groups[options.layerRank ? (*options.layerRank)[dwg.FindLayer(e.layer)] : 0].push_back(i);
     }
     report.groups = static_cast<int>(groups.size());
 

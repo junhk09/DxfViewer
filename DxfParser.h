@@ -16,7 +16,6 @@ class DxfEntity
 public:
     EntType type = EntType::Line;
     std::wstring layer = L"0";
-    int layerIndex = -1;
     int color = 256;
     std::vector<Vec3> pts;
     int sourceLog = -1;

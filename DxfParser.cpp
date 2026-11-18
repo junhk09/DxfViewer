@@ -415,9 +415,9 @@ bool LoadDxf(const std::wstring& path, DxfDrawing& dwg, std::wstring& error)
 
     for (DxfEntity& e : dwg.entities)
     {
-        e.layerIndex = dwg.FindLayer(e.layer);
-        if (e.layerIndex >= 0)
-            dwg.layers[e.layerIndex].entityCount++;
+        int k = dwg.FindLayer(e.layer);
+        if (k >= 0)
+            dwg.layers[k].entityCount++;
         for (const Vec3& p : e.pts)
         {
             if (!dwg.hasExtents)
