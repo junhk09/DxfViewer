@@ -4,7 +4,6 @@
 #include "resource.h"
 
 #include <algorithm>
-#include <fstream>
 
 // MFC가 실행 중에 이 클래스 객체를 만들 수 있게 등록 (창 나누기에서 사용)
 IMPLEMENT_DYNCREATE(CLeftView, CView)
@@ -23,9 +22,8 @@ BEGIN_MESSAGE_MAP(CLeftView, CView)
     ON_BN_CLICKED(IDC_RANK_SAME, &CLeftView::OnRankSame)
     ON_NOTIFY(LVN_GETDISPINFO, IDC_LOG_LIST, &CLeftView::OnLogGetDispInfo)
     ON_NOTIFY(NM_CUSTOMDRAW, IDC_LOG_LIST, &CLeftView::OnLogCustomDraw)
-    ON_NOTIFY(NM_DBLCLK, IDC_LOG_LIST, &CLeftView::OnLogDoubleClick)
+    ON_NOTIFY(NM_DBLCLK, IDC_LOG_LIST, &CLeftView::OnLogDoubleClick)   // 로그 목록(IDC_LOG_LIST)에서 더블클릭 알림(NM_DBLCLK)이 오면 OnLogDoubleClick 실행
     ON_NOTIFY(TCN_SELCHANGE, IDC_LOG_FILTER, &CLeftView::OnLogFilterChanged)
-    ON_BN_CLICKED(IDC_LOG_SAVE, &CLeftView::OnSaveLog)
 END_MESSAGE_MAP()
 
 // 이 파일 안에서만 쓰는 도우미 (이름 없는 namespace)
@@ -37,7 +35,7 @@ enum LogFilter { kFilterAll, kFilterDrawn, kFilterHidden };
 enum LayerColumn { kLayerName, kLayerColor, kLayerCount, kLayerRank };
 enum LogColumn { kLogNo, kLogSection, kLogType, kLogHandle, kLogLayer, kLogColor, kLogDetail, kLogColumns };
 
-// 로그 목록 열 제목 (CSV 첫 줄에도 씀)
+// 로그 목록 열 제목
 const wchar_t* kLogHeaders[kLogColumns] = { L"번호", L"구역", L"타입", L"핸들", L"레이어", L"색상", L"내용" };
 
 // 색 번호를 글자로 (256 = BYLAYER, 0 = BYBLOCK)
@@ -67,32 +65,6 @@ std::wstring LogCell(const std::vector<DxfLogEntry>& log, size_t row, int column
     return {};
 }
 
-// 유니코드 문자열을 UTF-8 바이트로 (CSV 저장용)
-std::string ToUtf8(const std::wstring& w)
-{
-    if (w.empty())
-        return {};
-    int n = WideCharToMultiByte(CP_UTF8, 0, w.data(), static_cast<int>(w.size()), nullptr, 0, nullptr, nullptr);
-    std::string s(n, '\0');
-    WideCharToMultiByte(CP_UTF8, 0, w.data(), static_cast<int>(w.size()), &s[0], n, nullptr, nullptr);
-    return s;
-}
-
-// CSV 칸 하나: 쉼표·따옴표·줄바꿈이 있으면 따옴표로 감쌈
-std::wstring CsvField(const std::wstring& s)
-{
-    if (s.find_first_of(L",\"\r\n") == std::wstring::npos)
-        return s;
-    std::wstring out = L"\"";
-    for (wchar_t c : s)
-    {
-        if (c == L'"')
-            out += L'"';
-        out += c;
-    }
-    return out + L"\"";
-}
-
 }
 
 // 이 뷰가 보여 주는 문서(CDxfDoc)
@@ -101,7 +73,7 @@ CDxfDoc* CLeftView::GetDocument() const
     return reinterpret_cast<CDxfDoc*>(m_pDocument);
 }
 
-// 탭, 레이어 목록과 버튼, 로그 필터·목록·저장 버튼 등 모든 컨트롤을 만듦
+// 탭, 레이어 목록과 버튼, 로그 필터·목록 등 모든 컨트롤을 만듦
 int CLeftView::OnCreate(LPCREATESTRUCT lpCreateStruct)
 {
     if (CView::OnCreate(lpCreateStruct) == -1)
@@ -140,8 +112,6 @@ int CLeftView::OnCreate(LPCREATESTRUCT lpCreateStruct)
 
     m_logInfo.Create(L"", WS_CHILD | SS_LEFT | SS_CENTERIMAGE | SS_ENDELLIPSIS, none, this, IDC_LOG_INFO);
     m_logInfo.SetFont(&m_font);
-    m_logSave.Create(L"CSV로 저장...", WS_CHILD | BS_PUSHBUTTON, none, this, IDC_LOG_SAVE);
-    m_logSave.SetFont(&m_font);
     m_logFilter.Create(WS_CHILD | TCS_BUTTONS | TCS_FLATBUTTONS | TCS_FOCUSNEVER, none, this, IDC_LOG_FILTER);
     m_logFilter.SetFont(&m_font);
     m_logFilter.InsertItem(kFilterAll, L"전체");
@@ -188,7 +158,7 @@ void CLeftView::Layout()
     CRect page = rc;
     m_tab.AdjustRect(FALSE, &page);
 
-    const int bar = ScaleDpi(26), gap = ScaleDpi(3), buttonWidth = ScaleDpi(96);
+    const int bar = ScaleDpi(26), gap = ScaleDpi(3);
 
     const int layerButton = ScaleDpi(64);
     m_layersOn.MoveWindow(page.left + gap, page.top + gap, layerButton, bar - 2 * gap);
@@ -210,8 +180,7 @@ void CLeftView::Layout()
 
     m_logFilter.MoveWindow(page.left + gap, page.top + gap, page.Width() - 2 * gap, bar - gap);
     int top = page.top + bar;
-    m_logSave.MoveWindow(page.right - buttonWidth, top + gap, buttonWidth, bar - 2 * gap);
-    m_logInfo.MoveWindow(page.left + gap, top, page.Width() - buttonWidth - 3 * gap, bar);
+    m_logInfo.MoveWindow(page.left + gap, top, page.Width() - 2 * gap, bar);
     top += bar;
     m_log.MoveWindow(page.left, top, page.Width(), page.bottom - top);
 }
@@ -237,7 +206,6 @@ void CLeftView::ShowPage(int page)
     m_rankHint.ShowWindow(layers);
     m_logFilter.ShowWindow(log);
     m_logInfo.ShowWindow(log);
-    m_logSave.ShowWindow(log);
     m_log.ShowWindow(log);
 }
 
@@ -528,13 +496,14 @@ void CLeftView::ShowLogSummary()
     else
         info.Format(L"%d개  (회색: 도면에 없음)", static_cast<int>(m_logRows.size()));
     m_logInfo.SetWindowText(info);
-    m_logSave.EnableWindow(!m_logRows.empty());
 }
 
 // 화면 줄 번호 → 로그 번호 (m_logRows). 범위 밖이면 -1
 int CLeftView::LogIndexOfRow(int row) const
 {
-    return row >= 0 && row < static_cast<int>(m_logRows.size()) ? m_logRows[row] : -1;
+    return row >= 0 && row < static_cast<int>(m_logRows.size())   // 줄 번호가 0 이상이고 표 크기 안이면
+        ? m_logRows[row]                                           //   그 칸에 적힌 로그 번호 (예: m_logRows[1] = 2)
+        : -1;                                                      //   빈 곳을 눌렀거나 범위 밖이면 -1
 }
 
 // 가상 목록이 칸 글자를 물어보면 채워 줌 (화면에 보이는 줄만)
@@ -552,35 +521,36 @@ void CLeftView::OnLogGetDispInfo(NMHDR* pNMHDR, LRESULT* pResult)
 // 로그 더블클릭: 그 줄의 로그 번호로 SelectLog
 void CLeftView::OnLogDoubleClick(NMHDR* pNMHDR, LRESULT* pResult) // 로그 더블클릭하면 선택
 {
-    *pResult = 0;
-    int index = LogIndexOfRow(reinterpret_cast<NMITEMACTIVATE*>(pNMHDR)->iItem);
-    if (index >= 0)
-        SelectLog(index);
+    *pResult = 0;                                                   // 알림 처리 결과 (0 = 기본 처리)
+    int index = LogIndexOfRow(reinterpret_cast<NMITEMACTIVATE*>(pNMHDR)->iItem);   // 알림 헤더를 더블클릭 알림 형식으로 바꿔 화면 줄 번호(iItem)를 꺼내고 → 로그 번호로
+    if (index >= 0)                                                 // 실제 로그 줄을 눌렀으면 (빈 곳이면 -1)
+        SelectLog(index);                                           //   그 로그를 선택
 }
 
 // 로그 선택: 문서에 m_selectedLog 저장 → 다른 뷰에 알림(강조) → 안내문 갱신
 void CLeftView::SelectLog(int logIndex)
 {
-    CDxfDoc* doc = GetDocument();
-    const DxfDrawing& dwg = doc->m_dwg;
-    doc->ClearSelection();
-    doc->m_selectedLog = logIndex;
-    doc->UpdateAllViews(this, kHintSelection);
+    CDxfDoc* doc = GetDocument();                                   // 이 뷰가 보여 주는 문서
+    const DxfDrawing& dwg = doc->m_dwg;                             // 문서의 도면 (로그·도형이 들어 있음). 참조라 복사 안 함
+    doc->ClearSelection();                                          // 이전 선택 지우기 (m_selectedLog = -1)
+    doc->m_selectedLog = logIndex;                                  // 새로 고른 로그 번호를 문서에 저장 → GL 뷰가 이 값을 읽음
+    doc->UpdateAllViews(this, kHintSelection);                      // 문서에 붙은 뷰들 중 나(this)를 뺀 모두의 OnUpdate를 "선택 바뀜"으로 호출
+                                                                    //   → CGLViewVBO::OnUpdate가 강조·확대를 하고 돌아옴
 
-    if (logIndex < 0 || logIndex >= static_cast<int>(dwg.log.size()))
+    if (logIndex < 0 || logIndex >= static_cast<int>(dwg.log.size()))   // 로그 번호가 범위 밖이면 (선택 해제 등)
     {
-        ShowLogSummary();
-        return;
+        ShowLogSummary();                                           //   안내문을 기본 문구("N개 …")로 되돌리고
+        return;                                                     //   끝
     }
-    int count = static_cast<int>(std::count_if(dwg.entities.begin(), dwg.entities.end(),
-        [logIndex](const DxfEntity& e) { return CDxfDoc::IsFromLog(e, logIndex); }));
-    const DxfLogEntry& e = dwg.log[logIndex];
-    CString info;
-    if (count > 0)
-        info.Format(L"#%d %s: 도면 요소 %d개 강조", logIndex + 1, e.type.c_str(), count);
-    else
+    int count = static_cast<int>(std::count_if(dwg.entities.begin(), dwg.entities.end(),   // 모든 도형 중에서
+        [logIndex](const DxfEntity& e) { return CDxfDoc::IsFromLog(e, logIndex); }));     //   이 로그에서 나온 도형(sourceLog == logIndex)의 개수
+    const DxfLogEntry& e = dwg.log[logIndex];                       // 선택한 로그 한 줄 (타입 이름을 쓰려고)
+    CString info;                                                   // 안내문 글자
+    if (count > 0)                                                  // 강조된 도형이 있으면
+        info.Format(L"#%d %s: 도면 요소 %d개 강조", logIndex + 1, e.type.c_str(), count);   //   예: "#3 CIRCLE: 도면 요소 1개 강조" (번호는 1부터)
+    else                                                            // 그려지지 않은 레코드면 (TEXT, INSERT 등)
         info.Format(L"#%d %s: 도면에 그려지지 않는 레코드", logIndex + 1, e.type.c_str());
-    m_logInfo.SetWindowText(info);
+    m_logInfo.SetWindowText(info);                                  // 로그 목록 위 안내문에 표시
 }
 
 // 그려지지 않은 로그는 회색 글자로
@@ -598,44 +568,4 @@ void CLeftView::OnLogCustomDraw(NMHDR* pNMHDR, LRESULT* pResult)
         if (index >= 0 && !GetDocument()->m_dwg.log[index].drawn)
             cd->clrText = RGB(140, 140, 140);
     }
-}
-
-// 지금 보이는(필터된) 로그를 CSV 파일로 저장 (UTF-8)
-void CLeftView::OnSaveLog()
-{
-    CDxfDoc* doc = GetDocument();
-    const auto& log = doc->m_dwg.log;
-    if (m_logRows.empty())
-        return;
-
-    CString name = doc->GetTitle();
-    int dot = name.ReverseFind(L'.');
-    if (dot > 0)
-        name = name.Left(dot);
-    CFileDialog dlg(FALSE, L"csv", name + L"_entities.csv", OFN_OVERWRITEPROMPT | OFN_PATHMUSTEXIST,
-                    L"CSV 파일 (*.csv)|*.csv|모든 파일 (*.*)|*.*||", this);
-    if (dlg.DoModal() != IDOK)
-        return;
-
-    std::ofstream file(dlg.GetPathName().GetString(), std::ios::binary);
-    if (!file)
-    {
-        AfxMessageBox(L"파일을 만들 수 없습니다.", MB_ICONERROR);
-        return;
-    }
-    file << "\xEF\xBB\xBF";
-    std::wstring line;
-    for (int c = 0; c < kLogColumns; ++c)
-        line += (c ? L"," : L"") + CsvField(kLogHeaders[c]);
-    file << ToUtf8(line) << "\r\n";
-    for (int index : m_logRows)
-    {
-        line.clear();
-        for (int c = 0; c < kLogColumns; ++c)
-            line += (c ? L"," : L"") + CsvField(LogCell(log, index, c));
-        file << ToUtf8(line) << "\r\n";
-    }
-    CString done;
-    done.Format(L"엔티티 로그 %d줄을 저장했습니다.\n%s", static_cast<int>(m_logRows.size()), dlg.GetPathName().GetString());
-    AfxMessageBox(done, MB_ICONINFORMATION);
 }

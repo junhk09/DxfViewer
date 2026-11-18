@@ -24,11 +24,11 @@ public:
     TravelModel m_travelModel;
     static constexpr double kDefaultLiftMm = 2.0;
     double m_liftClearanceMm = kDefaultLiftMm;
-    int m_selectedLog = -1;
+    int m_selectedLog = -1;                 // 로그 창에서 더블클릭한 로그 번호 (-1 = 선택 없음). 왼쪽 뷰가 쓰고 GL 뷰가 읽음
 
-    void ClearSelection()
+    void ClearSelection()                   // 선택 해제
     {
-        m_selectedLog = -1;
+        m_selectedLog = -1;                 // -1이면 IsFromLog가 항상 false → 강조할 도형 없음
     }
 
     std::vector<int> m_layerRank;
@@ -40,9 +40,9 @@ public:
 
     static Vec3 PathStart() { return {}; }
 
-    static bool IsFromLog(const DxfEntity& e, int log)
+    static bool IsFromLog(const DxfEntity& e, int log)   // 도형 e가 로그 log번에서 나온 도형인지
     {
-        return log >= 0 && e.sourceLog == log;
+        return log >= 0 && e.sourceLog == log;           // 선택이 있고(-1 아님), 파서가 적어 둔 sourceLog가 그 번호와 같으면 true
     }
 
     BOOL OnNewDocument() override;

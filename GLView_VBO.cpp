@@ -400,12 +400,12 @@ void CGLViewVBO::BuildBuffers()
 // 정점 하나(위치 3 + 색 3 = float 6개)를 v에 추가. 위치는 도면 중심(m_origin) 기준
 void CGLViewVBO::PushVertex(std::vector<float>& v, const Vec3& p, unsigned int rgb) const
 {
-    v.push_back(static_cast<float>(p.x - m_origin.x));
-    v.push_back(static_cast<float>(p.y - m_origin.y));
-    v.push_back(static_cast<float>(p.z - m_origin.z));
-    v.push_back(((rgb >> 16) & 0xFF) / 255.0f);
-    v.push_back(((rgb >> 8) & 0xFF) / 255.0f);
-    v.push_back((rgb & 0xFF) / 255.0f);
+    v.push_back(static_cast<float>(p.x - m_origin.x));     // x (도면 중심 기준. float는 큰 좌표에서 정밀도가 떨어져서 빼 줌)
+    v.push_back(static_cast<float>(p.y - m_origin.y));     // y
+    v.push_back(static_cast<float>(p.z - m_origin.z));     // z
+    v.push_back(((rgb >> 16) & 0xFF) / 255.0f);            // 빨강 (0xRRGGBB에서 RR을 꺼내 0~1로)
+    v.push_back(((rgb >> 8) & 0xFF) / 255.0f);             // 초록 (GG)
+    v.push_back((rgb & 0xFF) / 255.0f);                    // 파랑 (BB)
 }
 
 // 공이동 선(도형 끝 → 다음 도형 시작) 정점을 만들어 VBO에 올림
@@ -580,117 +580,117 @@ void CGLViewVBO::DrawSimulation()
 // 화면 그리기 전체: 배경 → 도면(레이어별) → 공이동 / 시뮬레이션 / 강조 → 3D 축 → 화면에 표시
 void CGLViewVBO::Render()
 {
-    if (m_simActive)
-        AdvanceSimulation();
-    wglMakeCurrent(m_hdc, m_hrc);
-    EnsureMsaa(m_w, m_h);
+    if (m_simActive)                                        // 시뮬레이션 중이면
+        AdvanceSimulation();                                //   지난 시간만큼 진행 (강조와는 무관)
+    wglMakeCurrent(m_hdc, m_hrc);                           // 이 창의 OpenGL 컨텍스트를 현재로
+    EnsureMsaa(m_w, m_h);                                   // 계단 현상 줄이기용 프레임버퍼를 창 크기에 맞게 준비
 
-    glBindFramebuffer(GL_FRAMEBUFFER, m_fbo);
-    glViewport(0, 0, m_w, m_h);
-    glClearColor(kBackground[0], kBackground[1], kBackground[2], 1.0f);
-    glClear(GL_COLOR_BUFFER_BIT);
+    glBindFramebuffer(GL_FRAMEBUFFER, m_fbo);               // MSAA 프레임버퍼에 그림 (실패했으면 m_fbo = 0 → 화면에 바로)
+    glViewport(0, 0, m_w, m_h);                             // 창 전체에 그림
+    glClearColor(kBackground[0], kBackground[1], kBackground[2], 1.0f);   // 배경색 지정
+    glClear(GL_COLOR_BUFFER_BIT);                           // 배경색으로 전체 지우기
 
-    glUseProgram(m_program);
-    glUniform1f(m_locBright, 1.0f);
-    glUniform1f(m_locPointSize, 5.0f);
-    if (!m_ranges.empty())
+    glUseProgram(m_program);                                // 셰이더 프로그램 사용
+    glUniform1f(m_locBright, 1.0f);                         // 밝기 기본값 1 (원래 색)
+    glUniform1f(m_locPointSize, 5.0f);                      // 점 크기 기본값 5픽셀
+    if (!m_ranges.empty())                                  // 그릴 도면이 있으면
     {
-        Vec3 shift{ m_origin.x - m_target.x, m_origin.y - m_target.y, m_origin.z - m_target.z };
-        float mvp[16];
-        BuildMatrix(2.0 * m_scale / m_w, 2.0 * m_scale / m_h, shift, mvp);
-        const auto& layers = GetDocument()->m_dwg.layers;
-        glUniformMatrix4fv(m_locMvp, 1, GL_FALSE, mvp);
+        Vec3 shift{ m_origin.x - m_target.x, m_origin.y - m_target.y, m_origin.z - m_target.z };   // 정점 기준(도면 중심) → 화면 가운데(m_target)로 옮길 양
+        float mvp[16];                                      // 변환 행렬 (회전 + 이동 + 확대)
+        BuildMatrix(2.0 * m_scale / m_w, 2.0 * m_scale / m_h, shift, mvp);   // m_scale(FocusSelection이 바꾼 배율)로 행렬 만들기
+        const auto& layers = GetDocument()->m_dwg.layers;   // 레이어 보임 여부를 보려고
+        glUniformMatrix4fv(m_locMvp, 1, GL_FALSE, mvp);     // 셰이더에 행렬 전달
 
-        const bool dim = m_simActive || m_hasSelection;
-        glUniform1f(m_locBright, dim ? 0.3f : 1.0f);
-        glBindVertexArray(m_vao);
-        for (const DrawRange& r : m_ranges)
-            if (layers[r.layer].visible)
-                glDrawArrays(r.mode, r.first, r.count);
-        glUniform1f(m_locBright, 1.0f);
+        const bool dim = m_simActive || m_hasSelection;     // 시뮬레이션 중이거나 강조가 있으면 → 나머지를 어둡게
+        glUniform1f(m_locBright, dim ? 0.3f : 1.0f);        //   어둡게면 밝기 0.3
+        glBindVertexArray(m_vao);                           // 도면 전체 VAO
+        for (const DrawRange& r : m_ranges)                 // 레이어별 · 선/점별 구간마다
+            if (layers[r.layer].visible)                    //   켜진 레이어만
+                glDrawArrays(r.mode, r.first, r.count);     //     그 구간 그리기
+        glUniform1f(m_locBright, 1.0f);                     // 밝기를 다시 1로 (강조는 원래 밝기로)
 
-        if (m_simActive)
+        if (m_simActive)                                    // 시뮬레이션 중이면
         {
-            DrawSimulation();
+            DrawSimulation();                               //   시뮬레이션만 그림 (강조는 안 그림)
         }
         else
         {
-            if (m_showTravel)
+            if (m_showTravel)                               // 공이동 선을 켰으면
             {
-                glUniform1f(m_locBright, dim ? 0.3f : 1.0f);
+                glUniform1f(m_locBright, dim ? 0.3f : 1.0f);    //   강조 중이면 공이동 선도 어둡게
                 glBindVertexArray(m_travelVao);
                 if (m_travelCount > 0)
-                    glDrawArrays(GL_LINES, 0, m_travelCount);
+                    glDrawArrays(GL_LINES, 0, m_travelCount);   //   공이동 선
                 glUniform1f(m_locPointSize, 9.0f);
-                glDrawArrays(GL_POINTS, m_travelCount, 1);
+                glDrawArrays(GL_POINTS, m_travelCount, 1);      //   시작점(원점) 표시
                 glUniform1f(m_locPointSize, 5.0f);
                 glUniform1f(m_locBright, 1.0f);
             }
-            if (m_hasSelection)
+            if (m_hasSelection)                             // ★ 강조할 도형이 있으면 (BuildSelection이 정함)
             {
-                glBindVertexArray(m_selVao);
-                glLineWidth(3.5f);
+                glBindVertexArray(m_selVao);                //   강조 전용 VAO (m_selVbo를 읽음)
+                glLineWidth(3.5f);                          //   선을 굵게
                 if (m_selLineCount > 0)
-                    glDrawArrays(GL_LINES, 0, m_selLineCount);
-                glLineWidth(1.5f);
-                glUniform1f(m_locPointSize, 10.0f);
-                glDrawArrays(GL_POINTS, m_selLineCount, m_selPointCount);
-                glUniform1f(m_locPointSize, 5.0f);
+                    glDrawArrays(GL_LINES, 0, m_selLineCount);  //   버퍼 앞부분: 노랑 선들
+                glLineWidth(1.5f);                          //   선 굵기 원래대로
+                glUniform1f(m_locPointSize, 10.0f);         //   점을 크게
+                glDrawArrays(GL_POINTS, m_selLineCount, m_selPointCount);   //   버퍼 뒷부분: 시작(초록) · 끝(빨강) 점들
+                glUniform1f(m_locPointSize, 5.0f);          //   점 크기 원래대로
             }
         }
     }
 
-    if (m_3d)
+    if (m_3d)                                               // 3D 보기면 왼쪽 아래에 축 표시
     {
-        int size = ScaleDpi(72);
-        glViewport(ScaleDpi(6), ScaleDpi(6), size, size);
+        int size = ScaleDpi(72);                            //   축 그림 크기 (화면 배율 반영)
+        glViewport(ScaleDpi(6), ScaleDpi(6), size, size);   //   왼쪽 아래 작은 영역에만 그림
         float axisMvp[16];
-        BuildMatrix(0.8, 0.8, Vec3{}, axisMvp);
+        BuildMatrix(0.8, 0.8, Vec3{}, axisMvp);             //   회전만 반영한 행렬
         glUniformMatrix4fv(m_locMvp, 1, GL_FALSE, axisMvp);
         glBindVertexArray(m_axisVao);
-        glDrawArrays(GL_LINES, 0, 6);
-        glViewport(0, 0, m_w, m_h);
+        glDrawArrays(GL_LINES, 0, 6);                       //   X(빨강) · Y(초록) · Z(파랑) 선 3개
+        glViewport(0, 0, m_w, m_h);                         //   그리는 영역 원래대로
     }
-    glBindVertexArray(0);
-    glUseProgram(0);
+    glBindVertexArray(0);                                   // VAO 선택 풀기
+    glUseProgram(0);                                        // 셰이더 선택 풀기
 
-    if (m_fbo)
+    if (m_fbo)                                              // MSAA 프레임버퍼에 그렸으면
     {
-        glBindFramebuffer(GL_READ_FRAMEBUFFER, m_fbo);
-        glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
-        glBlitFramebuffer(0, 0, m_w, m_h, 0, 0, m_w, m_h, GL_COLOR_BUFFER_BIT, GL_NEAREST);
+        glBindFramebuffer(GL_READ_FRAMEBUFFER, m_fbo);      //   읽을 곳: MSAA 프레임버퍼
+        glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);          //   쓸 곳: 창의 뒷버퍼
+        glBlitFramebuffer(0, 0, m_w, m_h, 0, 0, m_w, m_h, GL_COLOR_BUFFER_BIT, GL_NEAREST);   //   부드럽게 합쳐서 복사
         glBindFramebuffer(GL_FRAMEBUFFER, 0);
     }
-    SwapBuffers(m_hdc);
+    SwapBuffers(m_hdc);                                     // 뒷버퍼와 앞버퍼를 바꿔 화면에 표시 (여기서 강조가 눈에 보임)
 }
 
 // WM_PAINT 때 MFC가 부름: OpenGL 초기화에 실패했으면 오류 글자, 아니면 Render
 void CGLViewVBO::OnDraw(CDC* pDC)
 {
-    if (!m_glOk)
+    if (!m_glOk)                                            // OpenGL 초기화에 실패했으면
     {
         CRect rc;
-        GetClientRect(&rc);
-        pDC->FillSolidRect(rc, RGB(30, 30, 30));
-        pDC->SetTextColor(RGB(255, 120, 120));
-        pDC->SetBkMode(TRANSPARENT);
-        rc.DeflateRect(16, 16);
-        pDC->DrawText(m_glError.IsEmpty() ? CString(L"OpenGL 초기화 실패") : m_glError, rc, DT_LEFT | DT_TOP | DT_WORDBREAK);
+        GetClientRect(&rc);                                 //   창 크기
+        pDC->FillSolidRect(rc, RGB(30, 30, 30));            //   어두운 배경
+        pDC->SetTextColor(RGB(255, 120, 120));              //   빨간 글자
+        pDC->SetBkMode(TRANSPARENT);                        //   글자 배경은 투명
+        rc.DeflateRect(16, 16);                             //   가장자리 여백
+        pDC->DrawText(m_glError.IsEmpty() ? CString(L"OpenGL 초기화 실패") : m_glError, rc, DT_LEFT | DT_TOP | DT_WORDBREAK);   // 오류 메시지 표시
         return;
     }
-    Render();
+    Render();                                               // 정상이면 OpenGL로 그리기
 }
 
 // 문서가 바뀌었을 때 (hint에 따라): 선택이면 강조만, 그 밖에는 정점·공이동·강조를 다시 만듦
 void CGLViewVBO::OnUpdate(CView*, LPARAM lHint, CObject*)
 {
-	if (lHint == kHintSelection) // 선택이 바뀌었을 때
+    if (lHint == kHintSelection)    // 선택이 바뀌었을 때 (왼쪽 뷰의 SelectLog → UpdateAllViews에서 옴)
     {
-        if (m_glOk)
-            BuildSelection(); //강조데이터
-		FocusSelection();   // 선택 영역으로 줌
-		Invalidate(FALSE);  // 화면 갱신 요청
-        return;
+        if (m_glOk)                 // OpenGL 초기화에 성공했을 때만 (VBO를 써야 하니까)
+            BuildSelection();       //   강조 데이터 만들기 (m_selectedLog에서 나온 도형 → 노랑 선 + 시작/끝 점)
+        FocusSelection();           // 강조한 도형으로 확대 (확대값만 바꿈)
+        Invalidate(FALSE);          // 다시 그리기 요청 → 나중에 WM_PAINT → OnDraw → Render
+        return;                     // 도면 전체 VBO·공이동 선은 그대로 두고 끝 (선택만 바뀌었으니까)
     }
 
     StopSimulation();
@@ -737,77 +737,77 @@ void CGLViewVBO::ZoomExtents()
 // 상자(lo ~ hi)가 화면의 fill 비율만큼 차지하도록 중심(m_target)과 배율(m_scale)을 정함
 void CGLViewVBO::ZoomToBox(const Vec3& lo, const Vec3& hi, double fill)
 {
-    m_target = { (lo.x + hi.x) / 2, (lo.y + hi.y) / 2, (lo.z + hi.z) / 2 };
+    m_target = { (lo.x + hi.x) / 2, (lo.y + hi.y) / 2, (lo.z + hi.z) / 2 };   // 화면 가운데에 올 점 = 상자의 중심
 
-    double r[3][3];
-    Rotation(r);
-    double half[3] = { (hi.x - lo.x) / 2, (hi.y - lo.y) / 2, (hi.z - lo.z) / 2 };
-    double hw = 0, hh = 0;
-    for (int j = 0; j < 3; ++j)
+    double r[3][3];                                         // 지금 보는 방향의 회전 행렬
+    Rotation(r);                                            //   yaw · pitch로 계산 (2D면 회전 없음)
+    double half[3] = { (hi.x - lo.x) / 2, (hi.y - lo.y) / 2, (hi.z - lo.z) / 2 };   // 상자의 x · y · z 반폭
+    double hw = 0, hh = 0;                                  // 화면에 비친 상자의 반폭(가로) · 반높이(세로)
+    for (int j = 0; j < 3; ++j)                             // x · y · z 축마다
     {
-        hw += std::fabs(r[0][j]) * half[j];
-        hh += std::fabs(r[1][j]) * half[j];
+        hw += std::fabs(r[0][j]) * half[j];                 //   그 축이 화면 가로로 비치는 길이를 더함
+        hh += std::fabs(r[1][j]) * half[j];                 //   그 축이 화면 세로로 비치는 길이를 더함
     }
-    double span = std::max(hw, hh);
-    if (span < 1e-9)
-        return;
-    hw = std::max(hw, span * 1e-3);
-    hh = std::max(hh, span * 1e-3);
-    m_scale = std::min(m_w / (2 * hw), m_h / (2 * hh)) * fill;
+    double span = std::max(hw, hh);                         // 둘 중 큰 쪽
+    if (span < 1e-9)                                        // 상자 크기가 0이면 (점 하나만 강조 등)
+        return;                                             //   배율은 그대로 두고 중심만 옮김
+    hw = std::max(hw, span * 1e-3);                         // 한쪽이 0에 가까우면 (가로선·세로선 하나 등)
+    hh = std::max(hh, span * 1e-3);                         //   0으로 나누지 않게 아주 작은 값으로 막음
+    m_scale = std::min(m_w / (2 * hw), m_h / (2 * hh)) * fill;   // 가로 · 세로 중 더 빡빡한 쪽에 맞춘 배율(픽셀/도면 단위) × fill (강조는 0.5)
 }
 
 // 강조 데이터 만들기: m_selectedLog에서 나온 도형을 노랑 선 + 시작(초록) / 끝(빨강) 점으로 VBO에 올림
 void CGLViewVBO::BuildSelection()
 {
-    const CDxfDoc* doc = GetDocument();
-    const DxfDrawing& dwg = doc->m_dwg;
-    std::vector<float> lines, points;
-    m_hasSelection = false;
-    for (const DxfEntity& e : dwg.entities)
+    const CDxfDoc* doc = GetDocument();                     // 이 뷰의 문서
+    const DxfDrawing& dwg = doc->m_dwg;                     // 문서의 도면 (도형 목록이 들어 있음)
+    std::vector<float> lines, points;                       // 강조 선 정점들, 강조 점 정점들 (정점 하나 = float 6개)
+    m_hasSelection = false;                                 // 일단 "강조할 도형 없음"으로 시작
+    for (const DxfEntity& e : dwg.entities)                 // 모든 도형을 하나씩 보면서
     {
-        if (e.pts.empty())
-            continue;
-        if (!CDxfDoc::IsFromLog(e, doc->m_selectedLog))
-            continue;
-        const unsigned int rgb = kSelectRgb;
-        for (const Vec3& p : e.pts)
+        if (e.pts.empty())                                  //   점이 없는 도형은
+            continue;                                       //     건너뜀
+        if (!CDxfDoc::IsFromLog(e, doc->m_selectedLog))     //   선택한 로그에서 나온 도형이 아니면 (sourceLog != m_selectedLog)
+            continue;                                       //     건너뜀
+        const unsigned int rgb = kSelectRgb;                //   강조 색 (노랑 0xFFE14D)
+        for (const Vec3& p : e.pts)                         //   이 도형의 점마다 (확대할 상자를 구하려고)
         {
-            if (!m_hasSelection)
+            if (!m_hasSelection)                            //     처음 만난 점이면
             {
-                m_selLo = m_selHi = p;
-                m_hasSelection = true;
+                m_selLo = m_selHi = p;                      //       상자를 그 점 하나로 시작
+                m_hasSelection = true;                      //       "강조할 도형 있음"
             }
-            m_selLo = { std::min(m_selLo.x, p.x), std::min(m_selLo.y, p.y), std::min(m_selLo.z, p.z) };
-            m_selHi = { std::max(m_selHi.x, p.x), std::max(m_selHi.y, p.y), std::max(m_selHi.z, p.z) };
+            m_selLo = { std::min(m_selLo.x, p.x), std::min(m_selLo.y, p.y), std::min(m_selLo.z, p.z) };   // 상자 최소 모서리 넓히기
+            m_selHi = { std::max(m_selHi.x, p.x), std::max(m_selHi.y, p.y), std::max(m_selHi.z, p.z) };   // 상자 최대 모서리 넓히기
         }
-        if (e.type == EntType::Point)
+        if (e.type == EntType::Point)                       //   POINT는 선이 없으니
         {
-            PushVertex(points, e.pts[0], rgb);
-            continue;
+            PushVertex(points, e.pts[0], rgb);              //     노랑 점 하나만 넣고
+            continue;                                       //     다음 도형으로
         }
-        for (size_t k = 1; k < e.pts.size(); ++k)
+        for (size_t k = 1; k < e.pts.size(); ++k)           //   이웃한 두 점마다 (선분 하나 = 정점 2개)
         {
-            PushVertex(lines, e.pts[k - 1], rgb);
-            PushVertex(lines, e.pts[k], rgb);
+            PushVertex(lines, e.pts[k - 1], rgb);           //     선분 시작 정점 (노랑)
+            PushVertex(lines, e.pts[k], rgb);               //     선분 끝 정점 (노랑)
         }
-        PushVertex(points, e.pts.back(), kEndRgb);
-        PushVertex(points, e.pts.front(), kStartRgb);
+        PushVertex(points, e.pts.back(), kEndRgb);          //   끝점은 빨강 점
+        PushVertex(points, e.pts.front(), kStartRgb);       //   시작점은 초록 점 (나중에 넣어서 겹치면 위에 그려짐)
     }
-    m_selLineCount = static_cast<GLsizei>(lines.size() / 6);
-    m_selPointCount = static_cast<GLsizei>(points.size() / 6);
-    lines.insert(lines.end(), points.begin(), points.end());
+    m_selLineCount = static_cast<GLsizei>(lines.size() / 6);    // 선 정점 개수 (float 6개가 정점 하나)
+    m_selPointCount = static_cast<GLsizei>(points.size() / 6);  // 점 정점 개수
+    lines.insert(lines.end(), points.begin(), points.end());    // 한 버퍼에 [선 정점들 | 점 정점들] 순서로 이어 붙임
 
-    wglMakeCurrent(m_hdc, m_hrc);
-    glBindBuffer(GL_ARRAY_BUFFER, m_selVbo);
-    glBufferData(GL_ARRAY_BUFFER, static_cast<GLsizeiptr>(lines.size() * sizeof(float)),
-                 lines.empty() ? nullptr : lines.data(), GL_DYNAMIC_DRAW);
-    glBindBuffer(GL_ARRAY_BUFFER, 0);
+    wglMakeCurrent(m_hdc, m_hrc);                           // 이 창의 OpenGL 컨텍스트를 현재로
+    glBindBuffer(GL_ARRAY_BUFFER, m_selVbo);                // 강조 전용 VBO 선택
+    glBufferData(GL_ARRAY_BUFFER, static_cast<GLsizeiptr>(lines.size() * sizeof(float)),   // 정점 데이터를 GPU로 올림 (크기 = float 개수 × 4바이트)
+                 lines.empty() ? nullptr : lines.data(), GL_DYNAMIC_DRAW);                 //   비었으면 빈 버퍼. 자주 바뀌니 DYNAMIC
+    glBindBuffer(GL_ARRAY_BUFFER, 0);                       // 선택 풀기
 }
 
 // 강조한 도형으로 확대 (화면의 절반)
 void CGLViewVBO::FocusSelection()
 {
-    if (m_hasSelection)
+    if (m_hasSelection)                     // 강조할 도형이 있을 때만 (TEXT 같은 그려지지 않는 로그면 확대 안 함)
         ZoomToBox(m_selLo, m_selHi, 0.5);   // 강조한 도형이 화면의 절반을 차지하도록 확대
 }
 
@@ -837,28 +837,28 @@ void CGLViewVBO::SetMode3D(bool on)
 // yaw · pitch 각도로 회전 행렬 계산
 void CGLViewVBO::Rotation(double r[3][3]) const
 {
-    double yaw = m_yaw * kPi / 180, pitch = m_pitch * kPi / 180;
-    double c = std::cos(yaw), s = std::sin(yaw);
-    double cp = std::cos(pitch), sp = std::sin(pitch);
-    r[0][0] = c;       r[0][1] = -s;      r[0][2] = 0;
-    r[1][0] = cp * s;  r[1][1] = cp * c;  r[1][2] = -sp;
-    r[2][0] = sp * s;  r[2][1] = sp * c;  r[2][2] = cp;
+    double yaw = m_yaw * kPi / 180, pitch = m_pitch * kPi / 180;   // 각도(도) → 라디안. yaw = Z축 둘레 회전, pitch = 앞뒤로 기울기
+    double c = std::cos(yaw), s = std::sin(yaw);                    // yaw의 cos, sin
+    double cp = std::cos(pitch), sp = std::sin(pitch);              // pitch의 cos, sin
+    r[0][0] = c;       r[0][1] = -s;      r[0][2] = 0;              // 1행: 도면 좌표 → 화면 가로(오른쪽)
+    r[1][0] = cp * s;  r[1][1] = cp * c;  r[1][2] = -sp;            // 2행: 도면 좌표 → 화면 세로(위쪽)
+    r[2][0] = sp * s;  r[2][1] = sp * c;  r[2][2] = cp;             // 3행: 도면 좌표 → 화면 깊이 (2D에서는 안 씀)
 }
 
 // 회전 + 이동 + 확대를 합친 4x4 변환 행렬 (셰이더의 uMVP)
 void CGLViewVBO::BuildMatrix(double kx, double ky, const Vec3& shift, float out[16]) const
 {
-    double r[3][3];
+    double r[3][3];                                         // 회전 행렬
     Rotation(r);
-    std::fill(out, out + 16, 0.0f);
-    const double k[2] = { kx, ky };
-    for (int i = 0; i < 2; ++i)
+    std::fill(out, out + 16, 0.0f);                         // 4x4 행렬을 0으로 (OpenGL 순서: 열 우선)
+    const double k[2] = { kx, ky };                         // 가로 · 세로 배율 (도면 단위 → 화면 -1~1 범위)
+    for (int i = 0; i < 2; ++i)                             // 화면 가로(i=0) · 세로(i=1) 줄만 채움 (깊이는 안 씀)
     {
         for (int j = 0; j < 3; ++j)
-            out[j * 4 + i] = static_cast<float>(k[i] * r[i][j]);
-        out[12 + i] = static_cast<float>(k[i] * (r[i][0] * shift.x + r[i][1] * shift.y + r[i][2] * shift.z));
+            out[j * 4 + i] = static_cast<float>(k[i] * r[i][j]);   // 회전 × 배율
+        out[12 + i] = static_cast<float>(k[i] * (r[i][0] * shift.x + r[i][1] * shift.y + r[i][2] * shift.z));   // 이동(shift)도 회전 · 배율을 거쳐 넣음
     }
-    out[15] = 1.0f;
+    out[15] = 1.0f;                                         // 동차 좌표의 w = 1
 }
 
 // 배경 지우기 생략 (OpenGL이 전부 그리므로 깜빡임 방지)

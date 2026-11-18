@@ -29,7 +29,6 @@ protected:
     afx_msg void OnLogCustomDraw(NMHDR* pNMHDR, LRESULT* pResult);
     afx_msg void OnLogDoubleClick(NMHDR* pNMHDR, LRESULT* pResult);
     afx_msg void OnLogFilterChanged(NMHDR* pNMHDR, LRESULT* pResult);
-    afx_msg void OnSaveLog();
     DECLARE_MESSAGE_MAP()
 
 private:
@@ -58,6 +57,5 @@ private:
     CListCtrl m_log;
     std::vector<int> m_logRows;
     CStatic m_logInfo;
-    CButton m_logSave;
     bool m_filling = false;
 };

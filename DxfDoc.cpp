@@ -47,24 +47,10 @@ BOOL CDxfDoc::OnOpenDocument(LPCTSTR lpszPathName)
     return TRUE;
 }
 
-// 도면 단위($INSUNITS) 1이 몇 mm인지 (1 = inch → 25.4, 4 = mm → 1 …). Z 여유 계산에 씀
+// 도면 단위($INSUNITS) 1이 몇 mm인지: inch(1)면 25.4, 그 밖에는 mm로 보고 1. Z 여유 계산에 씀
 double CDxfDoc::MmPerUnit(int insUnits)
 {
-    switch (insUnits)
-    {
-    case 1:  return 25.4;
-    case 2:  return 304.8;
-    case 3:  return 1609344.0;
-    case 5:  return 10.0;
-    case 6:  return 1000.0;
-    case 7:  return 1e6;
-    case 8:  return 25.4e-6;
-    case 9:  return 0.0254;
-    case 10: return 914.4;
-    case 13: return 0.001;
-    case 14: return 100.0;
-    default: return 1.0;
-    }
+    return insUnits == 1 ? 25.4 : 1.0;
 }
 
 // 문서 내용 비우기 (새 파일을 열기 전, 닫을 때)
