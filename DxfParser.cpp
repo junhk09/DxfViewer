@@ -179,13 +179,11 @@ std::wstring Pt(const Record& r, int xCode)
 }
 
 size_t ParseEntity(const std::vector<Record>& recs, size_t i, std::vector<DxfEntity>& out,
-                   bool& paperSpace,
                    std::vector<DxfLogEntry>& log, const std::wstring& section)
 {
     const Record& r = recs[i];
     const std::wstring& t = r.type;
     size_t last = i;
-    paperSpace = Int(r, 67, 0) == 1;
 
     DxfEntity e;
     e.layer = Str(r, 8, L"0");
@@ -388,7 +386,6 @@ bool LoadDxf(const std::wstring& path, DxfDrawing& dwg, std::wstring& error)
             break;
         }
 
-        bool paperSpace = false;
         switch (section)
         {
         case Section::Tables:
@@ -407,17 +404,8 @@ bool LoadDxf(const std::wstring& path, DxfDrawing& dwg, std::wstring& error)
             break;
 
         case Section::Entities:
-        {
-            size_t before = dwg.entities.size();
-            i = ParseEntity(recs, i, dwg.entities, paperSpace, dwg.log, L"ENTITIES");
-            if (paperSpace && dwg.entities.size() > before)
-            {
-                dwg.entities.resize(before);
-                dwg.log.back().drawn = false;
-                dwg.log.back().detail += L"  (배치 공간)";
-            }
+            i = ParseEntity(recs, i, dwg.entities, dwg.log, L"ENTITIES");
             break;
-        }
 
         default:
             break;
