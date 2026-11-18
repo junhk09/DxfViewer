@@ -94,7 +94,7 @@ Vec3 Extrusion(const Record& r)
     return { Dbl(r, 210, 0), Dbl(r, 220, 0), Dbl(r, 230, 1) };
 }
 
-std::string TrimA(const std::string& s)
+std::string TrimA(const std::string& s) // 공백, 탭, \r 제거
 {
     size_t b = s.find_first_not_of(" \t\r");
     if (b == std::string::npos)
@@ -103,7 +103,7 @@ std::string TrimA(const std::string& s)
     return s.substr(b, e - b + 1);
 }
 
-std::wstring TrimW(const std::wstring& s)
+std::wstring TrimW(const std::wstring& s) // 공백, 탭, \r 제거
 {
     size_t b = s.find_first_not_of(L" \t\r");
     if (b == std::wstring::npos)
@@ -180,20 +180,19 @@ std::wstring Pt(const Record& r, int xCode)
 size_t ParseEntity(const std::vector<Record>& recs, size_t i, std::vector<DxfEntity>& out,
                    std::vector<DxfLogEntry>& log, const std::wstring& section)
 {
-    const Record& r = recs[i];
-    const std::wstring& t = r.type;
+    const std::wstring& t = recs[i].type;
     size_t last = i;
 
     DxfEntity e;
-    e.layer = Str(r, 8, L"0");
-    e.color = Int(r, 62, 256);
+    e.layer = Str(recs[i], 8, L"0");
+    e.color = Int(recs[i], 62, 256);
 
-    log.push_back({ section, t, Str(r, 5), e.layer, e.color });
+    log.push_back({ section, t, Str(recs[i], 5), e.layer, e.color });
     e.sourceLog = static_cast<int>(log.size()) - 1;
-    if (Find(r, 210))
-        log.back().detail = L"법선 " + Pt(r, 210) + L"  ";
+    if (Find(recs[i], 210))
+        log.back().detail = L"법선 " + Pt(recs[i], 210) + L"  ";
 
-    const bool invisible = Int(r, 60, 0) == 1;
+	const bool invisible = Int(recs[i], 60, 0) == 1; // 그룹코드 60번의 값이 1이면 안그림.
     auto keep = [&]() {
         if (!invisible)
             return true;
@@ -205,16 +204,16 @@ size_t ParseEntity(const std::vector<Record>& recs, size_t i, std::vector<DxfEnt
     if (t == L"LINE")
     {
         e.type = EntType::Line;
-        e.pts ={ { Dbl(r, 10), Dbl(r, 20), Dbl(r, 30) }, { Dbl(r, 11), Dbl(r, 21), Dbl(r, 31) } };
+        e.pts ={ { Dbl(recs[i], 10), Dbl(recs[i], 20), Dbl(recs[i], 30) }, { Dbl(recs[i], 11), Dbl(recs[i], 21), Dbl(recs[i], 31) } };
         double dx = e.pts[1].x - e.pts[0].x, dy = e.pts[1].y - e.pts[0].y, dz = e.pts[1].z - e.pts[0].z;
-        log.back().detail += Format(L"시작 %s  끝 %s  길이 %.4f", Pt(r, 10).c_str(), Pt(r, 11).c_str(),
+        log.back().detail += Format(L"시작 %s  끝 %s  길이 %.4f", Pt(recs[i], 10).c_str(), Pt(recs[i], 11).c_str(),
                                std::sqrt(dx * dx + dy * dy + dz * dz));
     }
     else if (t == L"POINT")
     {
         e.type = EntType::Point;
-        e.pts = { { Dbl(r, 10), Dbl(r, 20), Dbl(r, 30) } };
-        log.back().detail += L"위치 " + Pt(r, 10);
+        e.pts = { { Dbl(recs[i], 10), Dbl(recs[i], 20), Dbl(recs[i], 30) } };
+        log.back().detail += L"위치 " + Pt(recs[i], 10);
     }
     else if (t == L"CIRCLE" || t == L"ARC")
     {
@@ -222,21 +221,21 @@ size_t ParseEntity(const std::vector<Record>& recs, size_t i, std::vector<DxfEnt
         double a0 = 0, sweep = 2 * kPi;
         if (t == L"ARC")
         {
-            a0 = Dbl(r, 50) * kPi / 180;
-            sweep = Dbl(r, 51) * kPi / 180 - a0;
+            a0 = Dbl(recs[i], 50) * kPi / 180;
+            sweep = Dbl(recs[i], 51) * kPi / 180 - a0;
             while (sweep <= 0)
                 sweep += 2 * kPi;
         }
-        AppendArc(e.pts, Ocs(Extrusion(r)), Dbl(r, 10), Dbl(r, 20), Dbl(r, 30), Dbl(r, 40), a0, sweep);
-        log.back().detail += Format(L"중심 %s  반지름 %.4f", Pt(r, 10).c_str(), Dbl(r, 40));
+        AppendArc(e.pts, Ocs(Extrusion(recs[i])), Dbl(recs[i], 10), Dbl(recs[i], 20), Dbl(recs[i], 30), Dbl(recs[i], 40), a0, sweep);
+        log.back().detail += Format(L"중심 %s  반지름 %.4f", Pt(recs[i], 10).c_str(), Dbl(recs[i], 40));
         if (t == L"ARC")
-            log.back().detail += Format(L"  각도 %.2f° ~ %.2f°", Dbl(r, 50), Dbl(r, 51));
+            log.back().detail += Format(L"  각도 %.2f° ~ %.2f°", Dbl(recs[i], 50), Dbl(recs[i], 51));
     }
     else                                                 // 그 밖의 엔티티 전부: 그릴 수 없음 → 로그에 "해석 불가"만 남김
     {
         log.back().drawn = false;
         log.back().detail = L"해석 불가";
-        if (t == L"POLYLINE" || (t == L"INSERT" && Int(r, 66) == 1))   // 뒤에 VERTEX / ATTRIB … SEQEND가 딸려 오는 종류는
+        if (t == L"POLYLINE" || (t == L"INSERT" && Int(recs[i], 66) == 1))   // 뒤에 VERTEX / ATTRIB … SEQEND가 딸려 오는 종류는
         {                                                               //   그 레코드들까지 이 한 줄로 묶어서 건너뜀
             size_t j = i + 1;
             while (j < recs.size() && (recs[j].type == L"VERTEX" || recs[j].type == L"ATTRIB"))
@@ -258,7 +257,7 @@ void ParseHeader(const Record& section, DxfDrawing& dwg)
     {
         if (g.first == 9)
             var = TrimW(g.second);
-        else if (var == L"$INSUNITS" && g.first == 70)
+        else if (var == L"$INSUNITS" && g.first == 70) // 도면만 읽는다.
             dwg.insUnits = _wtoi(g.second.c_str());
     }
 }
@@ -322,7 +321,7 @@ bool LoadDxf(const std::wstring& path, DxfDrawing& dwg, std::wstring& error)
         return false;
     }
 
-    size_t pos = (data.size() >= 3 && data.compare(0, 3, "\xEF\xBB\xBF") == 0) ? 3 : 0;
+	size_t pos = (data.size() >= 3 && data.compare(0, 3, "\xEF\xBB\xBF") == 0) ? 3 : 0; // UTF-8 쓸거다하는 정보 제거 하고읽기
     std::vector<std::string> lines;
     while (pos < data.size())
     {
@@ -330,7 +329,7 @@ bool LoadDxf(const std::wstring& path, DxfDrawing& dwg, std::wstring& error)
         if (end == std::string::npos)
             end = data.size();
         size_t len = end - pos;
-        if (len && data[pos + len - 1] == '\r')
+		if (len && data[pos + len - 1] == '\r') // Windows 줄바꿈이면 \r 제거
             --len;
         lines.emplace_back(data, pos, len);
         pos = end + 1;
@@ -350,7 +349,7 @@ bool LoadDxf(const std::wstring& path, DxfDrawing& dwg, std::wstring& error)
         }
         std::wstring value = Decode(lines[i + 1], cp);
         if (code == 0)
-            recs.push_back({ TrimW(value), {} });
+            recs.push_back({ TrimW(value), {} }); 
         else if (!recs.empty())
             recs.back().groups.emplace_back(static_cast<int>(code), std::move(value));
     }
@@ -360,24 +359,23 @@ bool LoadDxf(const std::wstring& path, DxfDrawing& dwg, std::wstring& error)
 
     for (size_t i = 0; i < recs.size(); ++i)
     {
-        const Record& r = recs[i];
-        if (r.type == L"SECTION")
+        if (recs[i].type == L"SECTION")
         {
-            std::wstring name = TrimW(Str(r, 2));
+            std::wstring name = TrimW(Str(recs[i], 2));
             section = name == L"HEADER" ? Section::Header
                     : name == L"TABLES" ? Section::Tables
                     : name == L"ENTITIES" ? Section::Entities
                     : Section::Other;
             if (section == Section::Header)
-                ParseHeader(r, dwg);
+                ParseHeader(recs[i], dwg);
             continue;
         }
-        if (r.type == L"ENDSEC")
+        if (recs[i].type == L"ENDSEC")
         {
             section = Section::None;
             continue;
         }
-        if (r.type == L"EOF")
+        if (recs[i].type == L"EOF")
         {
             sawEof = true;
             break;
@@ -386,15 +384,15 @@ bool LoadDxf(const std::wstring& path, DxfDrawing& dwg, std::wstring& error)
         switch (section)
         {
         case Section::Tables:
-            if (r.type == L"LAYER")
+            if (recs[i].type == L"LAYER")
             {
                 DxfLayer layer;
-                layer.name = Str(r, 2);
-                int color = Int(r, 62, 7);
-                layer.off = color < 0;
-                layer.color = std::abs(color);
-                layer.frozen = (Int(r, 70) & 1) != 0;
-                layer.visible = !layer.off && !layer.frozen;
+				layer.name = Str(recs[i], 2); // 레이어 이름
+				int color = Int(recs[i], 62, 7); //   색상 코드 (0~256, 0이면 숨김)
+                layer.off = color < 0; // 색이 음수면 꺼진 레이어
+                layer.color = std::abs(color); // 색상 코드는 양수로
+                layer.frozen = (Int(recs[i], 70) & 1) != 0; // 70번의 값은 2진수로 오는데, 1번 비트가 켜져 있으면 안그림.
+				layer.visible = !layer.off && !layer.frozen; // 꺼지거나 얼어붙은 레이어는 안보이게 -> 실질적으로 그림/안그림 관리
                 if (dwg.FindLayer(layer.name) < 0)
                     dwg.layers.push_back(layer);
             }
