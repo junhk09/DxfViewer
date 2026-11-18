@@ -117,7 +117,6 @@ std::wstring UnescapeUnicode(const std::wstring& s)
     if (s.find(L"\\U+") == std::wstring::npos && s.find(L"\\u+") == std::wstring::npos)
         return s;
     std::wstring out;
-    out.reserve(s.size());
     for (size_t i = 0; i < s.size(); ++i)
     {
         if (s[i] == L'\\' && i + 6 < s.size() && (s[i + 1] == L'U' || s[i + 1] == L'u') && s[i + 2] == L'+'
@@ -325,7 +324,6 @@ bool LoadDxf(const std::wstring& path, DxfDrawing& dwg, std::wstring& error)
 
     size_t pos = (data.size() >= 3 && data.compare(0, 3, "\xEF\xBB\xBF") == 0) ? 3 : 0;
     std::vector<std::string> lines;
-    lines.reserve(data.size() / 8);
     while (pos < data.size())
     {
         size_t end = data.find('\n', pos);

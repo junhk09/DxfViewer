@@ -188,7 +188,6 @@ std::vector<Step> NearestNeighbor(const std::vector<DxfEntity>& entities, const 
 
     std::vector<uint8_t> used(n, 0);
     std::vector<Step> steps;
-    steps.reserve(n); //n만큼 공간을 미리 할당.
     for (int s = 0; s < n; ++s)
     {
         double best = std::numeric_limits<double>::max();
@@ -279,7 +278,6 @@ CutOrderReport OptimizeCutOrder(DxfDrawing& dwg, const Vec3& start, const CutOrd
     report.groups = static_cast<int>(groups.size());
 
     std::vector<DxfEntity> ordered;
-    ordered.reserve(dwg.entities.size());
     Vec3 pos = start;
     try
     {
