@@ -4,8 +4,10 @@
 
 #include <algorithm>
 
+// MFC가 실행 중에 이 클래스 객체를 만들 수 있게 등록 (창 나누기에서 사용)
 IMPLEMENT_DYNCREATE(CLogoView, CView)
 
+// 윈도우 메시지 → 처리 함수 연결표
 BEGIN_MESSAGE_MAP(CLogoView, CView)
     ON_WM_CREATE()
     ON_WM_ERASEBKGND()
@@ -13,6 +15,7 @@ BEGIN_MESSAGE_MAP(CLogoView, CView)
     ON_WM_MOUSEACTIVATE()
 END_MESSAGE_MAP()
 
+// 로고 비트맵을 불러오고 크기를 저장
 int CLogoView::OnCreate(LPCREATESTRUCT lpCreateStruct)
 {
     if (CView::OnCreate(lpCreateStruct) == -1)
@@ -26,6 +29,7 @@ int CLogoView::OnCreate(LPCREATESTRUCT lpCreateStruct)
     return 0;
 }
 
+// 흰 배경에 로고를 비율을 지키며 가운데에 그림
 void CLogoView::OnDraw(CDC* pDC)
 {
     CRect rc;
@@ -54,17 +58,20 @@ void CLogoView::OnDraw(CDC* pDC)
     mem.SelectObject(old);
 }
 
+// 배경 지우기 생략 (OnDraw가 전부 칠함 → 깜빡임 방지)
 BOOL CLogoView::OnEraseBkgnd(CDC*)
 {
     return TRUE;
 }
 
+// 크기가 바뀌면 다시 그리기
 void CLogoView::OnSize(UINT nType, int cx, int cy)
 {
     CView::OnSize(nType, cx, cy);
     Invalidate(FALSE);
 }
 
+// 로고를 클릭해도 활성 뷰가 바뀌지 않게 함
 int CLogoView::OnMouseActivate(CWnd*, UINT, UINT)
 {
     return MA_NOACTIVATE;

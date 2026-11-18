@@ -6,8 +6,10 @@
 #include <algorithm>
 #include <fstream>
 
+// MFC가 실행 중에 이 클래스 객체를 만들 수 있게 등록 (창 나누기에서 사용)
 IMPLEMENT_DYNCREATE(CLeftView, CView)
 
+// 탭·레이어 목록·버튼·로그 목록에서 오는 알림 → 처리 함수 연결표
 BEGIN_MESSAGE_MAP(CLeftView, CView)
     ON_WM_CREATE()
     ON_WM_SIZE()
@@ -26,15 +28,19 @@ BEGIN_MESSAGE_MAP(CLeftView, CView)
     ON_BN_CLICKED(IDC_LOG_SAVE, &CLeftView::OnSaveLog)
 END_MESSAGE_MAP()
 
+// 이 파일 안에서만 쓰는 도우미 (이름 없는 namespace)
 namespace {
 
+// 탭 페이지, 로그 필터, 레이어 목록 열, 로그 목록 열 번호
 enum Page { kPageLayers, kPageLog };
 enum LogFilter { kFilterAll, kFilterDrawn, kFilterHidden };
 enum LayerColumn { kLayerName, kLayerColor, kLayerCount, kLayerRank };
 enum LogColumn { kLogNo, kLogSection, kLogType, kLogHandle, kLogLayer, kLogColor, kLogDetail, kLogColumns };
 
+// 로그 목록 열 제목 (CSV 첫 줄에도 씀)
 const wchar_t* kLogHeaders[kLogColumns] = { L"번호", L"구역", L"타입", L"핸들", L"레이어", L"색상", L"내용" };
 
+// 색 번호를 글자로 (256 = BYLAYER, 0 = BYBLOCK)
 std::wstring ColorText(int aci)
 {
     if (aci == 256)
@@ -44,6 +50,7 @@ std::wstring ColorText(int aci)
     return std::to_wstring(aci);
 }
 
+// 로그 row번의 column번 열에 보여 줄 글자
 std::wstring LogCell(const std::vector<DxfLogEntry>& log, size_t row, int column)
 {
     const DxfLogEntry& e = log[row];
@@ -60,6 +67,7 @@ std::wstring LogCell(const std::vector<DxfLogEntry>& log, size_t row, int column
     return {};
 }
 
+// 유니코드 문자열을 UTF-8 바이트로 (CSV 저장용)
 std::string ToUtf8(const std::wstring& w)
 {
     if (w.empty())
@@ -70,6 +78,7 @@ std::string ToUtf8(const std::wstring& w)
     return s;
 }
 
+// CSV 칸 하나: 쉼표·따옴표·줄바꿈이 있으면 따옴표로 감쌈
 std::wstring CsvField(const std::wstring& s)
 {
     if (s.find_first_of(L",\"\r\n") == std::wstring::npos)
@@ -86,11 +95,13 @@ std::wstring CsvField(const std::wstring& s)
 
 }
 
+// 이 뷰가 보여 주는 문서(CDxfDoc)
 CDxfDoc* CLeftView::GetDocument() const
 {
     return reinterpret_cast<CDxfDoc*>(m_pDocument);
 }
 
+// 탭, 레이어 목록과 버튼, 로그 필터·목록·저장 버튼 등 모든 컨트롤을 만듦
 int CLeftView::OnCreate(LPCREATESTRUCT lpCreateStruct)
 {
     if (CView::OnCreate(lpCreateStruct) == -1)
@@ -150,6 +161,7 @@ int CLeftView::OnCreate(LPCREATESTRUCT lpCreateStruct)
     return 0;
 }
 
+// 배경을 버튼 면 색으로 칠함
 BOOL CLeftView::OnEraseBkgnd(CDC* pDC)
 {
     CRect rc;
@@ -158,12 +170,14 @@ BOOL CLeftView::OnEraseBkgnd(CDC* pDC)
     return TRUE;
 }
 
+// 크기가 바뀌면 컨트롤 배치를 다시 함
 void CLeftView::OnSize(UINT nType, int cx, int cy)
 {
     CView::OnSize(nType, cx, cy);
     Layout();
 }
 
+// 컨트롤 위치와 크기 배치
 void CLeftView::Layout()
 {
     if (!m_tab.GetSafeHwnd())
@@ -202,12 +216,14 @@ void CLeftView::Layout()
     m_log.MoveWindow(page.left, top, page.Width(), page.bottom - top);
 }
 
+// 탭(레이어 / 엔티티 로그)을 바꾸면 그 페이지를 보여 줌
 void CLeftView::OnTabChanged(NMHDR*, LRESULT* pResult)
 {
     ShowPage(m_tab.GetCurSel());
     *pResult = 0;
 }
 
+// 선택한 페이지의 컨트롤만 보이고 나머지는 숨김
 void CLeftView::ShowPage(int page)
 {
     int layers = page == kPageLayers ? SW_SHOW : SW_HIDE;
@@ -225,6 +241,7 @@ void CLeftView::ShowPage(int page)
     m_log.ShowWindow(log);
 }
 
+// 문서가 바뀌었을 때: 레이어 목록은 항상, 로그는 파일을 새로 열었을 때만 다시 채움 (자기가 보낸 알림은 무시)
 void CLeftView::OnUpdate(CView* pSender, LPARAM lHint, CObject*)
 {
     if (pSender == this)
@@ -234,6 +251,7 @@ void CLeftView::OnUpdate(CView* pSender, LPARAM lHint, CObject*)
         FillLog();
 }
 
+// 레이어 목록 채우기 (이름·색·개수·공정 번호·체크). 정렬하고 선택은 유지
 void CLeftView::FillLayers()
 {
     const CDxfDoc* doc = GetDocument();
@@ -270,12 +288,14 @@ void CLeftView::FillLayers()
     m_filling = false;
 }
 
+// 레이어 목록에서 선택한 레이어 번호 (없으면 -1)
 int CLeftView::SelectedLayer() const
 {
     int row = m_layers.GetNextItem(-1, LVNI_SELECTED);
     return row >= 0 ? static_cast<int>(m_layers.GetItemData(row)) : -1;
 }
 
+// 공정 번호 순으로 정렬해 다시 표시
 void CLeftView::ShowProcessOrder()
 {
     m_sortColumn = kLayerRank;
@@ -283,24 +303,28 @@ void CLeftView::ShowProcessOrder()
     FillLayers();
 }
 
+// ▲ 버튼: 선택한 레이어를 공정 순서 앞으로
 void CLeftView::OnRankUp()
 {
     GetDocument()->MoveLayerRank(SelectedLayer(), -1);
     ShowProcessOrder();
 }
 
+// ▼ 버튼: 선택한 레이어를 공정 순서 뒤로
 void CLeftView::OnRankDown()
 {
     GetDocument()->MoveLayerRank(SelectedLayer(), +1);
     ShowProcessOrder();
 }
 
+// "하나로" 버튼: 모든 레이어를 같은 공정으로
 void CLeftView::OnRankSame()
 {
     GetDocument()->ResetProcessOrder();
     ShowProcessOrder();
 }
 
+// 열 제목 클릭: 그 열로 정렬 (오름차순 → 내림차순 → 파일 순서로 돌아감)
 void CLeftView::OnLayerColumnClick(NMHDR* pNMHDR, LRESULT* pResult)
 {
     *pResult = 0;
@@ -324,6 +348,7 @@ void CLeftView::OnLayerColumnClick(NMHDR* pNMHDR, LRESULT* pResult)
 
 namespace {
 
+// 레이어 정렬 기준 (CompareLayers에 넘김)
 class LayerSort
 {
 public:
@@ -333,6 +358,7 @@ public:
     bool ascending;
 };
 
+// 두 레이어 비교 (SortItems 콜백). 같으면 원래 순서대로
 int CALLBACK CompareLayers(LPARAM a, LPARAM b, LPARAM context)
 {
     const auto* sort = reinterpret_cast<const LayerSort*>(context);
@@ -356,6 +382,7 @@ int CALLBACK CompareLayers(LPARAM a, LPARAM b, LPARAM context)
 
 }
 
+// 레이어 목록을 정렬하고, 열 제목 화살표와 "정렬: …" 안내를 갱신
 void CLeftView::SortLayers()
 {
     if (m_sortColumn >= 0)
@@ -387,6 +414,7 @@ void CLeftView::SortLayers()
     m_layerHint.SetWindowText(CString(L"정렬: ") + state);
 }
 
+// 레이어 체크박스를 바꾸면 그 레이어를 켜거나 끄고 다른 뷰에 알림
 void CLeftView::OnLayerItemChanged(NMHDR* pNMHDR, LRESULT* pResult)
 {
     *pResult = 0;
@@ -404,6 +432,7 @@ void CLeftView::OnLayerItemChanged(NMHDR* pNMHDR, LRESULT* pResult)
     doc->UpdateAllViews(this, kHintVisibility);
 }
 
+// 레이어 목록의 색 칸을 실제 색으로 칠함
 void CLeftView::OnLayerCustomDraw(NMHDR* pNMHDR, LRESULT* pResult)
 {
     auto* cd = reinterpret_cast<NMLVCUSTOMDRAW*>(pNMHDR);
@@ -435,6 +464,7 @@ void CLeftView::OnLayerCustomDraw(NMHDR* pNMHDR, LRESULT* pResult)
     }
 }
 
+// 로그 필터 탭의 "전체 / 표시 / 미표시" 개수를 갱신하고 목록을 다시 채움
 void CLeftView::FillLog()
 {
     const auto& log = GetDocument()->m_dwg.log;
@@ -454,6 +484,7 @@ void CLeftView::FillLog()
     ApplyLogFilter();
 }
 
+// 필터에 맞는 로그 번호를 m_logRows에 모으고 목록 줄 수를 갱신 (선택한 로그는 유지)
 void CLeftView::ApplyLogFilter()
 {
     const auto& log = GetDocument()->m_dwg.log;
@@ -480,12 +511,14 @@ void CLeftView::ApplyLogFilter()
     ShowLogSummary();
 }
 
+// 필터 탭을 바꾸면 다시 거름
 void CLeftView::OnLogFilterChanged(NMHDR*, LRESULT* pResult)
 {
     *pResult = 0;
     ApplyLogFilter();
 }
 
+// 로그 목록 위 안내문 ("N개 (회색: 도면에 없음)")
 void CLeftView::ShowLogSummary()
 {
     const auto& log = GetDocument()->m_dwg.log;
@@ -498,11 +531,13 @@ void CLeftView::ShowLogSummary()
     m_logSave.EnableWindow(!m_logRows.empty());
 }
 
+// 화면 줄 번호 → 로그 번호 (m_logRows). 범위 밖이면 -1
 int CLeftView::LogIndexOfRow(int row) const
 {
     return row >= 0 && row < static_cast<int>(m_logRows.size()) ? m_logRows[row] : -1;
 }
 
+// 가상 목록이 칸 글자를 물어보면 채워 줌 (화면에 보이는 줄만)
 void CLeftView::OnLogGetDispInfo(NMHDR* pNMHDR, LRESULT* pResult)
 {
     *pResult = 0;
@@ -514,7 +549,8 @@ void CLeftView::OnLogGetDispInfo(NMHDR* pNMHDR, LRESULT* pResult)
     wcsncpy_s(di->item.pszText, di->item.cchTextMax, text.c_str(), _TRUNCATE);
 }
 
-void CLeftView::OnLogDoubleClick(NMHDR* pNMHDR, LRESULT* pResult)
+// 로그 더블클릭: 그 줄의 로그 번호로 SelectLog
+void CLeftView::OnLogDoubleClick(NMHDR* pNMHDR, LRESULT* pResult) // 로그 더블클릭하면 선택
 {
     *pResult = 0;
     int index = LogIndexOfRow(reinterpret_cast<NMITEMACTIVATE*>(pNMHDR)->iItem);
@@ -522,6 +558,7 @@ void CLeftView::OnLogDoubleClick(NMHDR* pNMHDR, LRESULT* pResult)
         SelectLog(index);
 }
 
+// 로그 선택: 문서에 m_selectedLog 저장 → 다른 뷰에 알림(강조) → 안내문 갱신
 void CLeftView::SelectLog(int logIndex)
 {
     CDxfDoc* doc = GetDocument();
@@ -546,6 +583,7 @@ void CLeftView::SelectLog(int logIndex)
     m_logInfo.SetWindowText(info);
 }
 
+// 그려지지 않은 로그는 회색 글자로
 void CLeftView::OnLogCustomDraw(NMHDR* pNMHDR, LRESULT* pResult)
 {
     auto* cd = reinterpret_cast<NMLVCUSTOMDRAW*>(pNMHDR);
@@ -562,6 +600,7 @@ void CLeftView::OnLogCustomDraw(NMHDR* pNMHDR, LRESULT* pResult)
     }
 }
 
+// 지금 보이는(필터된) 로그를 CSV 파일로 저장 (UTF-8)
 void CLeftView::OnSaveLog()
 {
     CDxfDoc* doc = GetDocument();

@@ -6,8 +6,10 @@
 
 #include <algorithm>
 
+// MFC가 실행 중에 이 클래스 객체를 만들 수 있게 등록 (문서 템플릿이 사용)
 IMPLEMENT_DYNCREATE(CGLViewVBO, CView)
 
+// 윈도우 메시지(생성·크기·마우스·타이머 …) → 처리 함수 연결표
 BEGIN_MESSAGE_MAP(CGLViewVBO, CView)
     ON_WM_CREATE()
     ON_WM_DESTROY()
@@ -26,8 +28,10 @@ BEGIN_MESSAGE_MAP(CGLViewVBO, CView)
     ON_WM_TIMER()
 END_MESSAGE_MAP()
 
+// 이 파일 안에서만 쓰는 도우미 (이름 없는 namespace)
 namespace {
 
+// 정점 셰이더: 점 위치에 변환 행렬(uMVP)을 곱하고 색을 넘김
 const char* kVertexShader = R"(#version 330 core
 layout(location = 0) in vec3 aPos;
 layout(location = 1) in vec3 aColor;
@@ -42,6 +46,7 @@ void main()
 }
 )";
 
+// 프래그먼트 셰이더: 색에 밝기(uBright)를 곱함 (강조·시뮬레이션 때 나머지를 어둡게)
 const char* kFragmentShader = R"(#version 330 core
 in vec3 vColor;
 uniform float uBright;
@@ -52,30 +57,36 @@ void main()
 }
 )";
 
+// 배경색, 원주율, 회전 감도(마우스 1픽셀당 각도)
 const float kBackground[3] = { 0.11f, 0.12f, 0.14f };
 const double kPi = 3.14159265358979323846;
 const double kOrbitDegPerPixel = 0.4;
 
+// 색: 공이동(주황), 시작점(초록), 시뮬레이션 헤드(흰색), 강조(노랑), 끝점(빨강)
 const unsigned int kTravelRgb = 0xFF9A1A;
 const unsigned int kStartRgb = 0x55FF55;
 const unsigned int kHeadRgb = 0xFFFFFF;
 const unsigned int kSelectRgb = 0xFFE14D;
 const unsigned int kEndRgb = 0xFF4040;
+// 시뮬레이션 타이머 번호와 전체 재생 시간(초)
 const UINT_PTR kSimTimer = 1;
 const double kSimSeconds = 15.0;
 
+// 두 점 사이 직선 거리
 double Dist(const Vec3& a, const Vec3& b)
 {
     double dx = a.x - b.x, dy = a.y - b.y, dz = a.z - b.z;
     return std::sqrt(dx * dx + dy * dy + dz * dz);
 }
 
+// 그릴 도형인지 (레이어가 있고 켜져 있고 점이 있음)
 bool IsVisible(const DxfDrawing& dwg, const DxfEntity& e)
 {
     int k = dwg.FindLayer(e.layer);
     return k >= 0 && dwg.layers[k].visible && !e.pts.empty();
 }
 
+// 공이동 선의 꺾은점들: 2D는 직선, 3D는 올라감 → 수평 → 내려감
 std::vector<Vec3> TravelPath(const Vec3& a, const Vec3& b, const TravelModel& model)
 {
     if (!model.lift || SamePoint(a, b))
@@ -84,6 +95,7 @@ std::vector<Vec3> TravelPath(const Vec3& a, const Vec3& b, const TravelModel& mo
     return { a, { a.x, a.y, top }, { b.x, b.y, top }, b };
 }
 
+// 도형의 실제 색을 RGB로 (256 = BYLAYER면 레이어 색)
 unsigned int EntityRgb(const DxfDrawing& dwg, const DxfEntity& e)
 {
     int aci = e.color == 256 ? dwg.layers[dwg.FindLayer(e.layer)].color : e.color;
@@ -93,6 +105,7 @@ unsigned int EntityRgb(const DxfDrawing& dwg, const DxfEntity& e)
     return AciToRgb(aci);
 }
 
+// 셰이더 소스 하나를 컴파일. 실패하면 0과 오류 내용(log)
 GLuint CompileShader(GLenum type, const char* source, CString& log)
 {
     GLuint shader = glCreateShader(type);
@@ -113,11 +126,13 @@ GLuint CompileShader(GLenum type, const char* source, CString& log)
 
 }
 
+// 이 뷰가 보여 주는 문서(CDxfDoc)
 CDxfDoc* CGLViewVBO::GetDocument() const
 {
     return reinterpret_cast<CDxfDoc*>(m_pDocument);
 }
 
+// 창을 만들기 전 설정: OpenGL용 창 스타일(CS_OWNDC), 십자 커서, 더블클릭 받기
 BOOL CGLViewVBO::PreCreateWindow(CREATESTRUCT& cs)
 {
     if (!CView::PreCreateWindow(cs))
@@ -128,6 +143,7 @@ BOOL CGLViewVBO::PreCreateWindow(CREATESTRUCT& cs)
     return TRUE;
 }
 
+// 창이 만들어지면 OpenGL 초기화
 int CGLViewVBO::OnCreate(LPCREATESTRUCT lpCreateStruct)
 {
     if (CView::OnCreate(lpCreateStruct) == -1)
@@ -136,12 +152,14 @@ int CGLViewVBO::OnCreate(LPCREATESTRUCT lpCreateStruct)
     return 0;
 }
 
+// 오류 메시지를 저장하고 false 반환 (OnDraw가 화면에 표시함)
 bool CGLViewVBO::Fail(const CString& message)
 {
     m_glError = message;
     return false;
 }
 
+// OpenGL 준비: 픽셀 포맷, 3.3 core 컨텍스트, 함수 불러오기, vsync, 셰이더, VAO/VBO 6쌍, 축 데이터
 bool CGLViewVBO::InitGL()
 {
     m_hdc = ::GetDC(m_hWnd);
@@ -224,6 +242,7 @@ bool CGLViewVBO::InitGL()
     return true;
 }
 
+// 정점·프래그먼트 셰이더를 컴파일하고 하나의 프로그램으로 링크
 GLuint CGLViewVBO::CreateProgram()
 {
     CString log;
@@ -259,6 +278,7 @@ GLuint CGLViewVBO::CreateProgram()
     return program;
 }
 
+// 창이 닫힐 때: 타이머를 끄고 OpenGL 정리
 void CGLViewVBO::OnDestroy()
 {
     KillTimer(kSimTimer);
@@ -266,6 +286,7 @@ void CGLViewVBO::OnDestroy()
     CView::OnDestroy();
 }
 
+// OpenGL 자원(버퍼, VAO, 셰이더, 프레임버퍼, 컨텍스트) 해제
 void CGLViewVBO::ShutdownGL()
 {
     if (m_hrc)
@@ -300,6 +321,7 @@ void CGLViewVBO::ShutdownGL()
     m_glOk = false;
 }
 
+// 계단 현상 줄이기(MSAA 4배)용 프레임버퍼를 창 크기에 맞게 준비. 안 되면 일반 방식으로 그림
 void CGLViewVBO::EnsureMsaa(int w, int h)
 {
     if (m_msaaFailed || (m_fbo && w == m_fbW && h == m_fbH))
@@ -325,6 +347,7 @@ void CGLViewVBO::EnsureMsaa(int w, int h)
     m_fbH = h;
 }
 
+// 도면 정점 데이터 만들기: 레이어별·선/점별로 모아 VBO에 올림 (구간은 m_ranges에 기록)
 void CGLViewVBO::BuildBuffers()
 {
     const DxfDrawing& dwg = GetDocument()->m_dwg;
@@ -374,6 +397,7 @@ void CGLViewVBO::BuildBuffers()
     glBindBuffer(GL_ARRAY_BUFFER, 0);
 }
 
+// 정점 하나(위치 3 + 색 3 = float 6개)를 v에 추가. 위치는 도면 중심(m_origin) 기준
 void CGLViewVBO::PushVertex(std::vector<float>& v, const Vec3& p, unsigned int rgb) const
 {
     v.push_back(static_cast<float>(p.x - m_origin.x));
@@ -384,6 +408,7 @@ void CGLViewVBO::PushVertex(std::vector<float>& v, const Vec3& p, unsigned int r
     v.push_back((rgb & 0xFF) / 255.0f);
 }
 
+// 공이동 선(도형 끝 → 다음 도형 시작) 정점을 만들어 VBO에 올림
 void CGLViewVBO::BuildTravel()
 {
     const DxfDrawing& dwg = GetDocument()->m_dwg;
@@ -414,12 +439,14 @@ void CGLViewVBO::BuildTravel()
     glBindBuffer(GL_ARRAY_BUFFER, 0);
 }
 
+// 공이동 선 보이기 / 숨기기
 void CGLViewVBO::ToggleTravel()
 {
     m_showTravel = !m_showTravel;
     Invalidate(FALSE);
 }
 
+// 시뮬레이션 시작 / 정지: 공이동 + 가공 선분을 순서대로 모아 VBO에 올리고 타이머 시작
 void CGLViewVBO::ToggleSimulation()
 {
     if (m_simActive)
@@ -477,6 +504,7 @@ void CGLViewVBO::ToggleSimulation()
     Invalidate(FALSE);
 }
 
+// 시뮬레이션 정지
 void CGLViewVBO::StopSimulation()
 {
     if (!m_simActive)
@@ -486,6 +514,7 @@ void CGLViewVBO::StopSimulation()
     Invalidate(FALSE);
 }
 
+// 시뮬레이션 타이머(15ms)마다 다시 그리기 요청
 void CGLViewVBO::OnTimer(UINT_PTR nIDEvent)
 {
     if (nIDEvent != kSimTimer)
@@ -496,6 +525,7 @@ void CGLViewVBO::OnTimer(UINT_PTR nIDEvent)
     Invalidate(FALSE);
 }
 
+// 지난 시간만큼 시뮬레이션 진행 거리를 늘림 (전체를 kSimSeconds초 동안 재생)
 void CGLViewVBO::AdvanceSimulation()
 {
     LARGE_INTEGER now, frequency;
@@ -515,6 +545,7 @@ void CGLViewVBO::AdvanceSimulation()
     }
 }
 
+// 지금까지 진행한 선분과 움직이는 헤드(흰 점)를 그림
 void CGLViewVBO::DrawSimulation()
 {
     size_t done = std::upper_bound(m_simSegs.begin(), m_simSegs.end(), m_simProgress,
@@ -546,6 +577,7 @@ void CGLViewVBO::DrawSimulation()
     glUniform1f(m_locPointSize, 5.0f);
 }
 
+// 화면 그리기 전체: 배경 → 도면(레이어별) → 공이동 / 시뮬레이션 / 강조 → 3D 축 → 화면에 표시
 void CGLViewVBO::Render()
 {
     if (m_simActive)
@@ -632,6 +664,7 @@ void CGLViewVBO::Render()
     SwapBuffers(m_hdc);
 }
 
+// WM_PAINT 때 MFC가 부름: OpenGL 초기화에 실패했으면 오류 글자, 아니면 Render
 void CGLViewVBO::OnDraw(CDC* pDC)
 {
     if (!m_glOk)
@@ -648,14 +681,15 @@ void CGLViewVBO::OnDraw(CDC* pDC)
     Render();
 }
 
+// 문서가 바뀌었을 때 (hint에 따라): 선택이면 강조만, 그 밖에는 정점·공이동·강조를 다시 만듦
 void CGLViewVBO::OnUpdate(CView*, LPARAM lHint, CObject*)
 {
-    if (lHint == kHintSelection)
+	if (lHint == kHintSelection) // 선택이 바뀌었을 때
     {
         if (m_glOk)
-            BuildSelection();
-        FocusSelection();
-        Invalidate(FALSE);
+            BuildSelection(); //강조데이터
+		FocusSelection();   // 선택 영역으로 줌
+		Invalidate(FALSE);  // 화면 갱신 요청
         return;
     }
 
@@ -682,6 +716,7 @@ void CGLViewVBO::OnUpdate(CView*, LPARAM lHint, CObject*)
     Invalidate(FALSE);
 }
 
+// 도면 전체가 화면에 꽉 차게 (92%) 맞춤
 void CGLViewVBO::ZoomExtents()
 {
     CRect rc;
@@ -699,6 +734,7 @@ void CGLViewVBO::ZoomExtents()
     ZoomToBox(dwg.extMin, dwg.extMax, 0.92);
 }
 
+// 상자(lo ~ hi)가 화면의 fill 비율만큼 차지하도록 중심(m_target)과 배율(m_scale)을 정함
 void CGLViewVBO::ZoomToBox(const Vec3& lo, const Vec3& hi, double fill)
 {
     m_target = { (lo.x + hi.x) / 2, (lo.y + hi.y) / 2, (lo.z + hi.z) / 2 };
@@ -720,6 +756,7 @@ void CGLViewVBO::ZoomToBox(const Vec3& lo, const Vec3& hi, double fill)
     m_scale = std::min(m_w / (2 * hw), m_h / (2 * hh)) * fill;
 }
 
+// 강조 데이터 만들기: m_selectedLog에서 나온 도형을 노랑 선 + 시작(초록) / 끝(빨강) 점으로 VBO에 올림
 void CGLViewVBO::BuildSelection()
 {
     const CDxfDoc* doc = GetDocument();
@@ -767,12 +804,14 @@ void CGLViewVBO::BuildSelection()
     glBindBuffer(GL_ARRAY_BUFFER, 0);
 }
 
+// 강조한 도형으로 확대 (화면의 절반)
 void CGLViewVBO::FocusSelection()
 {
     if (m_hasSelection)
         ZoomToBox(m_selLo, m_selHi, 0.5);   // 강조한 도형이 화면의 절반을 차지하도록 확대
 }
 
+// 보는 방향(yaw, pitch)을 정하고 전체 보기로 맞춤 (위·앞·오른쪽·등각 버튼)
 void CGLViewVBO::SetView(double yawDeg, double pitchDeg)
 {
     if (yawDeg != 0 || pitchDeg != 0)
@@ -783,6 +822,7 @@ void CGLViewVBO::SetView(double yawDeg, double pitchDeg)
     Invalidate(FALSE);
 }
 
+// 2D / 3D 모드 전환 (3D는 등각 보기, 2D는 위에서 보기)
 void CGLViewVBO::SetMode3D(bool on)
 {
     if (on == m_3d)
@@ -794,6 +834,7 @@ void CGLViewVBO::SetMode3D(bool on)
         SetView(0, 0);
 }
 
+// yaw · pitch 각도로 회전 행렬 계산
 void CGLViewVBO::Rotation(double r[3][3]) const
 {
     double yaw = m_yaw * kPi / 180, pitch = m_pitch * kPi / 180;
@@ -804,6 +845,7 @@ void CGLViewVBO::Rotation(double r[3][3]) const
     r[2][0] = sp * s;  r[2][1] = sp * c;  r[2][2] = cp;
 }
 
+// 회전 + 이동 + 확대를 합친 4x4 변환 행렬 (셰이더의 uMVP)
 void CGLViewVBO::BuildMatrix(double kx, double ky, const Vec3& shift, float out[16]) const
 {
     double r[3][3];
@@ -819,11 +861,13 @@ void CGLViewVBO::BuildMatrix(double kx, double ky, const Vec3& shift, float out[
     out[15] = 1.0f;
 }
 
+// 배경 지우기 생략 (OpenGL이 전부 그리므로 깜빡임 방지)
 BOOL CGLViewVBO::OnEraseBkgnd(CDC*)
 {
     return TRUE;
 }
 
+// 창 크기가 바뀌면 크기를 저장하고 다시 그리기
 void CGLViewVBO::OnSize(UINT nType, int cx, int cy)
 {
     CView::OnSize(nType, cx, cy);
@@ -832,6 +876,7 @@ void CGLViewVBO::OnSize(UINT nType, int cx, int cy)
     Invalidate(FALSE);
 }
 
+// 화면 픽셀 좌표 → 도면 좌표 (상태 표시줄 좌표, 휠 확대 기준점)
 Vec3 CGLViewVBO::ScreenToWorld(CPoint p) const
 {
     double r[3][3];
@@ -843,6 +888,7 @@ Vec3 CGLViewVBO::ScreenToWorld(CPoint p) const
              m_target.z + r[0][2] * u + r[1][2] * v };
 }
 
+// 휠: 마우스 위치를 기준으로 확대 / 축소
 BOOL CGLViewVBO::OnMouseWheel(UINT, short zDelta, CPoint pt)
 {
     ScreenToClient(&pt);
@@ -860,6 +906,7 @@ BOOL CGLViewVBO::OnMouseWheel(UINT, short zDelta, CPoint pt)
     return TRUE;
 }
 
+// 드래그 시작 (마우스 캡처, 이동 또는 회전 모드)
 void CGLViewVBO::BeginDrag(CPoint point, Drag mode)
 {
     SetFocus();
@@ -868,6 +915,7 @@ void CGLViewVBO::BeginDrag(CPoint point, Drag mode)
     m_lastMouse = point;
 }
 
+// 드래그 끝
 void CGLViewVBO::EndDrag()
 {
     if (m_drag != Drag::None)
@@ -877,6 +925,7 @@ void CGLViewVBO::EndDrag()
     }
 }
 
+// 마우스 버튼: 왼쪽 · 가운데 = 이동, 오른쪽 = 회전 (3D일 때만)
 void CGLViewVBO::OnLButtonDown(UINT, CPoint point) { BeginDrag(point, Drag::Pan); }
 void CGLViewVBO::OnLButtonUp(UINT, CPoint) { EndDrag(); }
 void CGLViewVBO::OnMButtonDown(UINT, CPoint point) { BeginDrag(point, Drag::Pan); }
@@ -888,18 +937,21 @@ void CGLViewVBO::OnRButtonDown(UINT, CPoint point)
 }
 void CGLViewVBO::OnRButtonUp(UINT, CPoint) { EndDrag(); }
 
+// 다른 창이 마우스를 가져가면 드래그 취소
 void CGLViewVBO::OnCaptureChanged(CWnd* pWnd)
 {
     m_drag = Drag::None;
     CView::OnCaptureChanged(pWnd);
 }
 
+// 도면 화면 더블클릭: 전체 보기
 void CGLViewVBO::OnLButtonDblClk(UINT, CPoint)
 {
     ZoomExtents();
     Invalidate(FALSE);
 }
 
+// 마우스 이동: 드래그 중이면 이동 / 회전하고, 상태 표시줄에 좌표 표시
 void CGLViewVBO::OnMouseMove(UINT, CPoint point)
 {
     int dx = point.x - m_lastMouse.x, dy = point.y - m_lastMouse.y;

@@ -7,15 +7,18 @@
 #include <fstream>
 #include <iterator>
 
+// 이 파일 안에서만 쓰는 도우미 함수와 클래스 (이름 없는 namespace)
 namespace {
 
 const double kPi = 3.14159265358979323846;
 
+// 두 벡터의 외적 (두 벡터에 모두 수직인 벡터). Ocs의 축을 만들 때 씀
 Vec3 Cross(const Vec3& a, const Vec3& b)
 {
     return { a.y * b.z - a.z * b.y, a.z * b.x - a.x * b.z, a.x * b.y - a.y * b.x };
 }
 
+// 길이를 1로 맞춘 벡터. 길이가 0에 가까우면 (0, 0, 1)
 Vec3 Normalize(const Vec3& v)
 {
     double len = std::sqrt(v.x * v.x + v.y * v.y + v.z * v.z);
@@ -24,6 +27,7 @@ Vec3 Normalize(const Vec3& v)
     return { v.x / len, v.y / len, v.z / len };
 }
 
+// 도형 좌표계(OCS) → 도면 좌표계(WCS) 변환. 법선(210/220/230)이 기울어진 원·호를 3D 공간에 바르게 놓을 때 씀
 class Ocs
 {
 public:
@@ -53,8 +57,10 @@ private:
     bool m_identity = true;
 };
 
+// 그룹 코드와 값 한 쌍 (예: 8, "OUTER")
 using Group = std::pair<int, std::wstring>;
 
+// 레코드 하나: 그룹 코드 0의 값(type, 예: "LINE")과 그 뒤에 오는 (코드, 값) 목록
 class Record
 {
 public:
@@ -62,6 +68,7 @@ public:
     std::vector<Group> groups;
 };
 
+// 레코드에서 그룹 코드 code의 값을 찾음. 없으면 nullptr
 const std::wstring* Find(const Record& r, int code)
 {
     for (const auto& g : r.groups)
@@ -70,29 +77,34 @@ const std::wstring* Find(const Record& r, int code)
     return nullptr;
 }
 
+// 그룹 코드 값을 실수로 읽음 (없으면 def)
 double Dbl(const Record& r, int code, double def = 0.0)
 {
     const std::wstring* v = Find(r, code);
-    return v ? _wtof(v->c_str()) : def;
+	return v ? _wtof(v->c_str()) : def; //wstring을 double로 변환
 }
 
+// 그룹 코드 값을 정수로 읽음 (없으면 def)
 int Int(const Record& r, int code, int def = 0)
 {
     const std::wstring* v = Find(r, code);
     return v ? _wtoi(v->c_str()) : def;
 }
 
+// 그룹 코드 값을 문자열로 읽음 (없으면 def)
 std::wstring Str(const Record& r, int code, const wchar_t* def = L"")
 {
     const std::wstring* v = Find(r, code);
     return v ? *v : std::wstring(def);
 }
 
+// 법선 벡터(210/220/230)를 읽음. 없으면 (0, 0, 1) = XY 평면에 평평한 도형
 Vec3 Extrusion(const Record& r)
 {
     return { Dbl(r, 210, 0), Dbl(r, 220, 0), Dbl(r, 230, 1) };
 }
 
+// 바이트 문자열(std::string)용: 그룹 코드 줄을 숫자로 바꾸기 전에 다듬을 때 씀
 std::string TrimA(const std::string& s) // 공백, 탭, \r 제거
 {
     size_t b = s.find_first_not_of(" \t\r");
@@ -102,6 +114,7 @@ std::string TrimA(const std::string& s) // 공백, 탭, \r 제거
     return s.substr(b, e - b + 1);
 }
 
+// 유니코드 문자열(std::wstring)용: 레코드 종류·헤더 변수 이름을 다듬을 때 씀
 std::wstring TrimW(const std::wstring& s) // 공백, 탭, \r 제거
 {
     size_t b = s.find_first_not_of(L" \t\r");
@@ -111,6 +124,7 @@ std::wstring TrimW(const std::wstring& s) // 공백, 탭, \r 제거
     return s.substr(b, e - b + 1);
 }
 
+// 값 속의 \U+XXXX 표기를 실제 유니코드 글자로 바꿈 (예: \U+D55C → 한)
 std::wstring UnescapeUnicode(const std::wstring& s)
 {
     if (s.find(L"\\U+") == std::wstring::npos && s.find(L"\\u+") == std::wstring::npos)
@@ -132,6 +146,7 @@ std::wstring UnescapeUnicode(const std::wstring& s)
     return out;
 }
 
+// 파일에서 읽은 바이트 문자열을 코드페이지 cp로 유니코드(wstring)로 바꿈
 std::wstring Decode(const std::string& s, UINT cp)
 {
     if (s.empty())
@@ -144,12 +159,14 @@ std::wstring Decode(const std::string& s, UINT cp)
     return UnescapeUnicode(w);
 }
 
+// 호를 몇 개의 짧은 선분으로 나눌지 (한 바퀴에 96개 기준, 4~1024개)
 int SegmentsFor(double sweep)
 {
     int n = static_cast<int>(std::ceil(std::fabs(sweep) / (2 * kPi) * 96));
     return std::clamp(n, 4, 1024);
 }
 
+// 중심·반지름·시작각·사잇각으로 원/호 위의 점들을 계산해 out 뒤에 추가
 void AppendArc(std::vector<Vec3>& out, const Ocs& ocs, double cx, double cy, double z,
                double r, double a0, double sweep)
 {
@@ -161,6 +178,7 @@ void AppendArc(std::vector<Vec3>& out, const Ocs& ocs, double cx, double cy, dou
     }
 }
 
+// printf처럼 서식 문자열로 wstring을 만듦 (로그 detail 글자용)
 std::wstring Format(const wchar_t* fmt, ...)
 {
     wchar_t buf[1024];
@@ -171,11 +189,14 @@ std::wstring Format(const wchar_t* fmt, ...)
     return buf;
 }
 
+// 좌표 하나를 "(x, y, z)" 글자로 만듦 (그룹 코드 xCode, xCode+10, xCode+20)
 std::wstring Pt(const Record& r, int xCode)
 {
     return Format(L"(%.4f, %.4f, %.4f)", Dbl(r, xCode), Dbl(r, xCode + 10), Dbl(r, xCode + 20));
 }
 
+// ENTITIES 레코드 하나 처리: 로그 한 줄은 항상 추가, 그릴 수 있으면(LINE·CIRCLE·ARC·POINT) 도형도 추가.
+// 딸린 레코드(VERTEX·ATTRIB … SEQEND)를 건너뛰었으면 마지막으로 처리한 레코드 번호(last)를 돌려줌
 size_t ParseEntity(const std::vector<Record>& recs, size_t i, std::vector<DxfEntity>& out,
                    std::vector<DxfLogEntry>& log, const std::wstring& section)
 {
@@ -250,6 +271,7 @@ size_t ParseEntity(const std::vector<Record>& recs, size_t i, std::vector<DxfEnt
     return last;
 }
 
+// HEADER 섹션에서 도면 단위($INSUNITS)만 읽음
 void ParseHeader(const Record& section, DxfDrawing& dwg)
 {
     std::wstring var;
@@ -257,11 +279,12 @@ void ParseHeader(const Record& section, DxfDrawing& dwg)
     {
         if (g.first == 9)
             var = TrimW(g.second);
-        else if (var == L"$INSUNITS" && g.first == 70) // 도면만 읽는다.
+        else if (var == L"$INSUNITS" && g.first == 70) // 도면단위만 읽는다.
             dwg.insUnits = _wtoi(g.second.c_str());
     }
 }
 
+// 레코드를 만들기 전에 줄을 훑어 글자 인코딩을 정함 ($ACADVER가 2007 이상이면 UTF-8, 아니면 $DWGCODEPAGE)
 UINT DetectCodePage(const std::vector<std::string>& lines)
 {
     UINT cp = CP_ACP;
@@ -291,11 +314,13 @@ UINT DetectCodePage(const std::vector<std::string>& lines)
 
 }
 
+// 도면을 빈 상태로 초기화
 void DxfDrawing::Clear()
 {
     *this = DxfDrawing();
 }
 
+// 레이어 이름으로 layers에서 몇 번째인지 찾음. 없으면 -1
 int DxfDrawing::FindLayer(const std::wstring& name) const
 {
     for (size_t i = 0; i < layers.size(); ++i)
@@ -304,6 +329,7 @@ int DxfDrawing::FindLayer(const std::wstring& name) const
     return -1;
 }
 
+// DXF 파일을 읽어 dwg(단위·레이어·도형·로그·범위)를 채움. 실패하면 false와 error 메시지
 bool LoadDxf(const std::wstring& path, DxfDrawing& dwg, std::wstring& error)
 {
     dwg.Clear();
@@ -436,6 +462,7 @@ bool LoadDxf(const std::wstring& path, DxfDrawing& dwg, std::wstring& error)
     return true;
 }
 
+// AutoCAD 색 번호(ACI 1~255)를 RGB 값(0xRRGGBB)으로 바꿈
 unsigned int AciToRgb(int aci)
 {
     static const unsigned int basic[10] = { 0x000000, 0xFF0000, 0xFFFF00, 0x00FF00, 0x00FFFF,

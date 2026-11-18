@@ -7,8 +7,10 @@
 
 #include <algorithm>
 
+// MFC가 실행 중에 이 클래스 객체를 만들 수 있게 등록 (문서 템플릿이 사용)
 IMPLEMENT_DYNCREATE(CDxfDoc, CDocument)
 
+// 메뉴·버튼 명령(ID) → 처리 함수 연결표
 BEGIN_MESSAGE_MAP(CDxfDoc, CDocument)
     ON_COMMAND(ID_LAYER_ALL_ON, &CDxfDoc::OnLayerAllOn)
     ON_COMMAND(ID_LAYER_ALL_OFF, &CDxfDoc::OnLayerAllOff)
@@ -20,11 +22,13 @@ BEGIN_MESSAGE_MAP(CDxfDoc, CDocument)
     ON_UPDATE_COMMAND_UI(ID_VIEW_RESET, &CDxfDoc::OnUpdateViewReset)
 END_MESSAGE_MAP()
 
+// 새 문서 (빈 도면). 기본 동작 그대로
 BOOL CDxfDoc::OnNewDocument()
 {
     return CDocument::OnNewDocument();
 }
 
+// 파일 열기: LoadDxf로 읽고, 원래 순서(m_fileOrder)를 보관하고, 공정 번호를 모두 같게 초기화
 BOOL CDxfDoc::OnOpenDocument(LPCTSTR lpszPathName)
 {
     DeleteContents();
@@ -43,6 +47,7 @@ BOOL CDxfDoc::OnOpenDocument(LPCTSTR lpszPathName)
     return TRUE;
 }
 
+// 도면 단위($INSUNITS) 1이 몇 mm인지 (1 = inch → 25.4, 4 = mm → 1 …). Z 여유 계산에 씀
 double CDxfDoc::MmPerUnit(int insUnits)
 {
     switch (insUnits)
@@ -62,6 +67,7 @@ double CDxfDoc::MmPerUnit(int insUnits)
     }
 }
 
+// 문서 내용 비우기 (새 파일을 열기 전, 닫을 때)
 void CDxfDoc::DeleteContents()
 {
     m_dwg.Clear();
@@ -73,6 +79,7 @@ void CDxfDoc::DeleteContents()
     CDocument::DeleteContents();
 }
 
+// 모든 레이어를 켜거나 끄고 화면에 알림
 void CDxfDoc::SetAllLayers(bool visible)
 {
     for (DxfLayer& layer : m_dwg.layers)
@@ -80,9 +87,11 @@ void CDxfDoc::SetAllLayers(bool visible)
     UpdateAllViews(nullptr, kHintVisibility);
 }
 
+// "전체 선택" / "전체 해제" 버튼
 void CDxfDoc::OnLayerAllOn() { SetAllLayers(true); }
 void CDxfDoc::OnLayerAllOff() { SetAllLayers(false); }
 
+// 경로 정렬 실행: 옵션 준비 → 복사본에서 정렬(진행 창) → 결과 반영 → 화면에 알림
 // "경로 정렬" 버튼 / 메뉴 / F9 / Z 여유 칸 Enter → ID_PATH_OPTIMIZE → 메시지 맵을 통해 여기로 옴
 void CDxfDoc::OnPathOptimize()
 {
@@ -140,11 +149,13 @@ void CDxfDoc::OnPathOptimize()
     UpdateAllViews(nullptr, kHintCutOrder);                              // 도면 화면: 정점·공이동 선 다시 만들고 다시 그림 / 왼쪽 패널: 레이어 목록 갱신
 }
 
+// 모든 레이어의 공정 번호를 0으로 ("하나로" 버튼, 파일을 열 때)
 void CDxfDoc::ResetProcessOrder()
 {
     m_layerRank.assign(m_dwg.layers.size(), 0);
 }
 
+// 레이어의 공정 순서를 앞(-1) / 뒤(+1)로 옮김. 다른 레이어와 같은 번호면 그 레이어만 떼어 냄
 void CDxfDoc::MoveLayerRank(int layer, int delta)
 {
     if (layer < 0 || layer >= static_cast<int>(m_layerRank.size()))
@@ -162,6 +173,7 @@ void CDxfDoc::MoveLayerRank(int layer, int delta)
     NormalizeRanks();
 }
 
+// 공정 번호를 빈틈없이 0, 1, 2 …로 다시 매김 (순서는 그대로)
 void CDxfDoc::NormalizeRanks()
 {
     std::vector<int> steps = m_layerRank;
@@ -171,6 +183,7 @@ void CDxfDoc::NormalizeRanks()
         rank = static_cast<int>(std::lower_bound(steps.begin(), steps.end(), rank) - steps.begin());
 }
 
+// Home: 처음 상태로 (원래 순서, 레이어 보임 원래대로, 선택 해제)
 void CDxfDoc::OnViewReset()
 {
     m_dwg.entities = m_fileOrder;
@@ -182,11 +195,13 @@ void CDxfDoc::OnViewReset()
     UpdateAllViews(nullptr, kHintReload);
 }
 
+// 도형이 있을 때만 "처음 상태로" 명령을 켬
 void CDxfDoc::OnUpdateViewReset(CCmdUI* pCmdUI)
 {
     pCmdUI->Enable(!m_dwg.entities.empty());
 }
 
+// GL 뷰가 지금 3D 보기인지
 bool CDxfDoc::Is3DMode() const
 {
     POSITION pos = GetFirstViewPosition();
@@ -196,6 +211,7 @@ bool CDxfDoc::Is3DMode() const
     return false;
 }
 
+// "원래 순서로": 정렬 전 파일 순서로 되돌림
 void CDxfDoc::OnPathOriginal()
 {
     m_dwg.entities = m_fileOrder;
@@ -204,11 +220,13 @@ void CDxfDoc::OnPathOriginal()
     UpdateAllViews(nullptr, kHintCutOrder);
 }
 
+// 도형이 있을 때만 "경로 정렬" 버튼을 켬
 void CDxfDoc::OnUpdatePathOptimize(CCmdUI* pCmdUI)
 {
     pCmdUI->Enable(!m_dwg.entities.empty());
 }
 
+// 정렬된 상태일 때만 "원래 순서로" 버튼을 켬
 void CDxfDoc::OnUpdatePathOriginal(CCmdUI* pCmdUI)
 {
     pCmdUI->Enable(m_cutOrderOptimized);

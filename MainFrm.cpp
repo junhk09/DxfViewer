@@ -5,8 +5,10 @@
 #include "LogoView.h"
 #include "resource.h"
 
+// MFC가 실행 중에 이 클래스 객체를 만들 수 있게 등록 (문서 템플릿이 사용)
 IMPLEMENT_DYNCREATE(CMainFrame, CFrameWnd)
 
+// 툴바 버튼·메뉴 명령 → 처리 함수 연결표
 BEGIN_MESSAGE_MAP(CMainFrame, CFrameWnd)
     ON_WM_CREATE()
     ON_COMMAND(ID_VIEW_ZOOM_EXTENTS, &CMainFrame::OnZoomExtents)
@@ -25,8 +27,10 @@ BEGIN_MESSAGE_MAP(CMainFrame, CFrameWnd)
     ON_UPDATE_COMMAND_UI(ID_LIFT_UNIT, &CMainFrame::OnUpdateLiftGap)
 END_MESSAGE_MAP()
 
+// 상태 표시줄 칸 (좌표 표시 하나)
 static UINT indicators[] = { ID_INDICATOR_COORD };
 
+// 메인 창 처음 크기 (1280 x 800, 화면 배율 반영)
 BOOL CMainFrame::PreCreateWindow(CREATESTRUCT& cs)
 {
     if (!CFrameWnd::PreCreateWindow(cs))
@@ -36,6 +40,7 @@ BOOL CMainFrame::PreCreateWindow(CREATESTRUCT& cs)
     return TRUE;
 }
 
+// 모드 툴바와 상태 표시줄을 만들고, 파일 끌어다 놓기를 허용
 int CMainFrame::OnCreate(LPCREATESTRUCT lpCreateStruct)
 {
     if (CFrameWnd::OnCreate(lpCreateStruct) == -1)
@@ -49,6 +54,7 @@ int CMainFrame::OnCreate(LPCREATESTRUCT lpCreateStruct)
     return 0;
 }
 
+// 창 나누기: 왼쪽(위 로고 + 아래 왼쪽 패널) | 오른쪽(GL 도면 화면)
 BOOL CMainFrame::OnCreateClient(LPCREATESTRUCT, CCreateContext* pContext)
 {
     if (!m_splitter.CreateStatic(this, 1, 2))
@@ -64,11 +70,13 @@ BOOL CMainFrame::OnCreateClient(LPCREATESTRUCT, CCreateContext* pContext)
     return TRUE;
 }
 
+// 오른쪽 GL 뷰 가져오기
 CGLViewVBO* CMainFrame::GetGLView()
 {
     return DYNAMIC_DOWNCAST(CGLViewVBO, m_splitter.GetPane(0, 1));
 }
 
+// 전체 보기 버튼
 void CMainFrame::OnZoomExtents()
 {
     if (CGLViewVBO* view = GetGLView())
@@ -78,6 +86,7 @@ void CMainFrame::OnZoomExtents()
     }
 }
 
+// 표준 뷰 버튼 (위 · 앞 · 오른쪽 · 등각)
 void CMainFrame::OnViewPreset(UINT id)
 {
     CGLViewVBO* view = GetGLView();
@@ -92,6 +101,7 @@ void CMainFrame::OnViewPreset(UINT id)
     }
 }
 
+// 2D / 3D 모드 버튼
 void CMainFrame::OnMode2D()
 {
     if (CGLViewVBO* view = GetGLView())
@@ -104,6 +114,7 @@ void CMainFrame::OnMode3D()
         view->SetMode3D(true);
 }
 
+// 2D / 3D 버튼의 눌림 상태 표시
 void CMainFrame::OnUpdateMode2D(CCmdUI* pCmdUI)
 {
     CGLViewVBO* view = GetGLView();
@@ -116,18 +127,21 @@ void CMainFrame::OnUpdateMode3D(CCmdUI* pCmdUI)
     pCmdUI->SetCheck(view && view->Is3D());
 }
 
+// 공이동 선 보이기 버튼
 void CMainFrame::OnPathTravel()
 {
     if (CGLViewVBO* view = GetGLView())
         view->ToggleTravel();
 }
 
+// 시뮬레이션 버튼
 void CMainFrame::OnPathSimulate()
 {
     if (CGLViewVBO* view = GetGLView())
         view->ToggleSimulation();
 }
 
+// 공이동 / 시뮬레이션 버튼의 눌림 상태 표시
 void CMainFrame::OnUpdatePathTravel(CCmdUI* pCmdUI)
 {
     CGLViewVBO* view = GetGLView();
@@ -140,6 +154,7 @@ void CMainFrame::OnUpdatePathSimulate(CCmdUI* pCmdUI)
     pCmdUI->SetCheck(view && view->IsSimulating());
 }
 
+// 3D일 때만 Z 여유 입력 칸들을 보이게 함
 void CMainFrame::ShowModeBoxes(bool is3D)
 {
     if (m_boxes3D == static_cast<int>(is3D))
@@ -150,6 +165,7 @@ void CMainFrame::ShowModeBoxes(bool is3D)
     m_boxes3D = is3D ? 1 : 0;
 }
 
+// 툴바 안내문을 2D / 3D에 맞게 바꾸고, Z 여유 칸 표시 여부를 갱신
 void CMainFrame::OnUpdateModeHint(CCmdUI* pCmdUI)
 {
     CGLViewVBO* view = GetGLView();
@@ -160,12 +176,14 @@ void CMainFrame::OnUpdateModeHint(CCmdUI* pCmdUI)
     pCmdUI->SetText(text);
 }
 
+// Z 여유 칸은 3D일 때만 입력 가능
 void CMainFrame::OnUpdateLiftGap(CCmdUI* pCmdUI)
 {
     CGLViewVBO* view = GetGLView();
     pCmdUI->Enable(view && view->Is3D());
 }
 
+// 툴바 입력 칸에 숫자 표시
 void CMainFrame::ShowNumber(UINT id, double value)
 {
     CString text;
@@ -173,6 +191,7 @@ void CMainFrame::ShowNumber(UINT id, double value)
     m_modeBar.SetDlgItemText(id, text);
 }
 
+// 툴바 입력 칸의 숫자 읽기 (비었거나, 숫자가 아니거나, 음수면 false)
 bool CMainFrame::ReadNumber(UINT id, double& value)
 {
     CString text;
@@ -186,9 +205,11 @@ bool CMainFrame::ReadNumber(UINT id, double& value)
     return true;
 }
 
+// Z 여유(mm) 표시 / 읽기
 void CMainFrame::ShowLiftClearance(double mm) { ShowNumber(ID_LIFT_GAP, mm); }
 bool CMainFrame::ReadLiftClearance(double& mm) { return ReadNumber(ID_LIFT_GAP, mm); }
 
+// Z 여유 칸에서 Enter = 경로 정렬. 다른 키는 단축키로 가로채지 않고 입력 칸이 직접 받게 함
 BOOL CMainFrame::PreTranslateMessage(MSG* pMsg)
 {
     HWND lift = nullptr;
@@ -214,6 +235,7 @@ BOOL CMainFrame::PreTranslateMessage(MSG* pMsg)
     return CFrameWnd::PreTranslateMessage(pMsg);
 }
 
+// 상태 표시줄에 마우스 좌표 글자 표시
 void CMainFrame::SetCoordText(const CString& text)
 {
     if (m_statusBar.GetSafeHwnd())

@@ -7,49 +7,60 @@
 #include <limits>
 #include <map>
 
+// 이 파일 안에서만 쓰는 도우미 함수와 클래스 (이름 없는 namespace)
 namespace {
 
+// 시간 재기용 시계 (진행 알림 간격 계산)
 using Clock = std::chrono::steady_clock;
 
+// 격자 한 방향의 최대 칸 수 (너무 잘게 나누지 않도록)
 const int kMaxGridCells = 1024;
 
+// 두 점 사이 직선 거리
 double Dist(const Vec3& a, const Vec3& b)
 {
     double dx = a.x - b.x, dy = a.y - b.y, dz = a.z - b.z;
     return std::sqrt(dx * dx + dy * dy + dz * dz);
 }
 
+// 도형의 레이어가 있고 켜져 있는지 (정렬 대상인지)
 bool IsVisible(const DxfEntity& e, const DxfDrawing& dwg)
 {
     int k = dwg.FindLayer(e.layer);
     return k >= 0 && dwg.layers[k].visible;
 }
 
+// 닫힌 도형인지 (점이 3개 이상이고 시작점 = 끝점, 예: 원)
 bool IsClosed(const DxfEntity& e)
 {
     return e.pts.size() >= 3 && Dist(e.pts.front(), e.pts.back()) < 1e-9;
 }
 
+// 점 p가 들어가도록 최소(lo)·최대(hi) 상자를 넓힘
 void Extend(Vec3& lo, Vec3& hi, const Vec3& p)
 {
     lo = { std::min(lo.x, p.x), std::min(lo.y, p.y), std::min(lo.z, p.z) };
     hi = { std::max(hi.x, p.x), std::max(hi.y, p.y), std::max(hi.z, p.z) };
 }
 
+// 사용자가 취소를 누르면 던지는 예외 (표시용 빈 클래스)
 class Cancelled
 {
 };
 
+// 진행 창에 진행률을 알림. 40ms보다 자주 알리지 않고, 취소되면 Cancelled를 던짐
 class Progress
 {
 public:
     explicit Progress(const std::function<bool(const wchar_t*, double)>& callback) : m_callback(callback) {}
 
+    // 공정 그룹이 여러 개일 때 "공정 1/3 · " 같은 앞말을 붙임
     void SetGroup(int group, int groups)
     {
         m_prefix = groups > 1 ? L"공정 " + std::to_wstring(group) + L"/" + std::to_wstring(groups) + L" · " : L"";
     }
 
+    // 진행률 알리기 (40ms 간격으로 줄임). 사용자가 취소했으면 예외
     void operator()(const wchar_t* phase, double fraction)
     {
         if (!m_callback)
@@ -68,9 +79,11 @@ private:
     Clock::time_point m_last;
 };
 
+// 후보 점을 넣어 두는 격자. 현재 위치의 칸부터 링 단위로 넓혀 가며 가까운 점을 찾음
 class Grid
 {
 public:
+    // 상자 크기와 점 개수로 칸 크기와 칸 수를 정함 (한 칸에 점이 몇 개씩 들어가도록)
     Grid(const Vec3& lo, const Vec3& hi, size_t items)
     {
         double w = std::max(hi.x - lo.x, 0.0), h = std::max(hi.y - lo.y, 0.0);
@@ -83,9 +96,11 @@ public:
         m_cells.resize(static_cast<size_t>(m_nx) * m_ny);
     }
 
+    // x / y 좌표가 몇 번째 칸인지 (격자 밖이면 가장자리 칸)
     int CellX(double x) const { return std::clamp(static_cast<int>(std::floor((x - m_lo.x) / m_cell)), 0, m_nx - 1); }
     int CellY(double y) const { return std::clamp(static_cast<int>(std::floor((y - m_lo.y) / m_cell)), 0, m_ny - 1); }
 
+    // (cx, cy) 칸의 점 번호 목록. 격자 밖이면 nullptr
     std::vector<int>* Cell(int cx, int cy)
     {
         if (cx < 0 || cy < 0 || cx >= m_nx || cy >= m_ny)
@@ -93,8 +108,10 @@ public:
         return &m_cells[static_cast<size_t>(cy) * m_nx + cx];
     }
 
+    // 점 번호 id를 그 점이 속한 칸에 넣음
     void Add(const Vec3& p, int id) { Cell(CellX(p.x), CellY(p.y))->push_back(id); }
 
+    // 중심 칸 (cx, cy)에서 r칸 떨어진 테두리 칸들을 하나씩 f에 넘김. 격자 안 칸이 하나라도 있었으면 true
     template <class F>
     bool Ring(int cx, int cy, int r, F&& f)
     {
@@ -124,6 +141,7 @@ public:
         return any;
     }
 
+    // 링 r에 있는 점은 적어도 이만큼 떨어져 있음 → 이미 찾은 최소값보다 크면 더 볼 필요 없음
     double RingBound(int r) const { return r <= 1 ? 0.0 : (r - 1) * m_cell; }
 
 private:
@@ -133,6 +151,7 @@ private:
     std::vector<std::vector<int>> m_cells;
 };
 
+// 정렬 결과 한 칸: 어떤 도형을, 뒤집을지·어느 꼭짓점부터 자를지, 들어가는 점과 나가는 점
 class Step
 {
 public:
@@ -143,6 +162,7 @@ public:
     Vec3 entry, exit;
 };
 
+// Step의 들어가는 점(entry)과 나가는 점(exit)을 정함
 void SetEnds(Step& s, const DxfEntity& e)
 {
     if (s.closed)
@@ -154,6 +174,7 @@ void SetEnds(Step& s, const DxfEntity& e)
     s.exit = s.reversed ? e.pts.front() : e.pts.back();
 }
 
+// 최근접 이웃(그리디) 정렬: 현재 위치에서 가장 가까운 후보 점의 도형을 하나씩 고름 (격자 + 링으로 빠르게 찾음)
 std::vector<Step> NearestNeighbor(const std::vector<DxfEntity>& entities, const std::vector<int>& ids,
                                   const TravelModel& cost, Vec3 pos, Progress& progress)
 {
@@ -227,6 +248,7 @@ std::vector<Step> NearestNeighbor(const std::vector<DxfEntity>& entities, const 
     return steps;
 }
 
+// Step대로 점 순서를 바꾼 도형 복사본 (닫힌 도형은 시작 꼭짓점 회전, 열린 도형은 뒤집기)
 DxfEntity Oriented(const DxfEntity& e, const Step& s)
 {
     DxfEntity out = e;
@@ -244,11 +266,13 @@ DxfEntity Oriented(const DxfEntity& e, const Step& s)
 
 }
 
+// 두 점이 사실상 같은 점인지 (좌표 크기에 비례한 아주 작은 오차 허용)
 bool SamePoint(const Vec3& a, const Vec3& b)
 {
     return Dist(a, b) <= 1e-6 * std::max(1.0, std::fabs(a.x) + std::fabs(a.y) + std::fabs(a.z));
 }
 
+// 공이동 비용: 2D는 직선거리, 3D(lift)는 올라감 + 수평 + 내려감
 double TravelModel::Cost(const Vec3& a, const Vec3& b) const
 {
     if (!lift)
@@ -259,6 +283,7 @@ double TravelModel::Cost(const Vec3& a, const Vec3& b) const
     return (top - a.z) + std::hypot(b.x - a.x, b.y - a.y) + (top - b.z);
 }
 
+// 가공 순서 정렬 전체: 공정 번호별로 묶고, 그룹마다 NearestNeighbor로 정렬해 dwg.entities를 바꿈 (숨긴 도형은 맨 뒤)
 CutOrderReport OptimizeCutOrder(DxfDrawing& dwg, const Vec3& start, const CutOrderOptions& options)
 {
     CutOrderReport report;
