@@ -29,7 +29,6 @@
 #define IDC_LOG_LIST                1003
 #define IDC_LOG_INFO                1004
 #define IDC_LAYER_HINT              1006
-#define IDC_LOG_FILTER              1007
 #define IDC_PROGRESS_TEXT           1010
 #define IDC_PROGRESS_BAR            1011
 #define IDC_RANK_UP                 1012

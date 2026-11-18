@@ -28,7 +28,6 @@ protected:
     afx_msg void OnLogGetDispInfo(NMHDR* pNMHDR, LRESULT* pResult);
     afx_msg void OnLogCustomDraw(NMHDR* pNMHDR, LRESULT* pResult);
     afx_msg void OnLogDoubleClick(NMHDR* pNMHDR, LRESULT* pResult);
-    afx_msg void OnLogFilterChanged(NMHDR* pNMHDR, LRESULT* pResult);
     DECLARE_MESSAGE_MAP()
 
 private:
@@ -37,9 +36,7 @@ private:
     int SelectedLayer() const;
     void ShowProcessOrder();
     void FillLog();
-    void ApplyLogFilter();
     void ShowLogSummary();
-    int LogIndexOfRow(int row) const;
     void SelectLog(int logIndex);
     void ShowPage(int page);
     void Layout();
@@ -53,9 +50,7 @@ private:
     CStatic m_rankHint;
     int m_sortColumn = -1;
     bool m_sortAscending = true;
-    CTabCtrl m_logFilter;
     CListCtrl m_log;
-    std::vector<int> m_logRows;
     CStatic m_logInfo;
     bool m_filling = false;
 };

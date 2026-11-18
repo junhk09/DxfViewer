@@ -23,15 +23,13 @@ BEGIN_MESSAGE_MAP(CLeftView, CView)
     ON_NOTIFY(LVN_GETDISPINFO, IDC_LOG_LIST, &CLeftView::OnLogGetDispInfo)
     ON_NOTIFY(NM_CUSTOMDRAW, IDC_LOG_LIST, &CLeftView::OnLogCustomDraw)
     ON_NOTIFY(NM_DBLCLK, IDC_LOG_LIST, &CLeftView::OnLogDoubleClick)   // 로그 목록(IDC_LOG_LIST)에서 더블클릭 알림(NM_DBLCLK)이 오면 OnLogDoubleClick 실행
-    ON_NOTIFY(TCN_SELCHANGE, IDC_LOG_FILTER, &CLeftView::OnLogFilterChanged)
 END_MESSAGE_MAP()
 
 // 이 파일 안에서만 쓰는 도우미 (이름 없는 namespace)
 namespace {
 
-// 탭 페이지, 로그 필터, 레이어 목록 열, 로그 목록 열 번호
+// 탭 페이지, 레이어 목록 열, 로그 목록 열 번호
 enum Page { kPageLayers, kPageLog };
-enum LogFilter { kFilterAll, kFilterDrawn, kFilterHidden };
 enum LayerColumn { kLayerName, kLayerColor, kLayerCount, kLayerRank };
 enum LogColumn { kLogNo, kLogSection, kLogType, kLogHandle, kLogLayer, kLogColor, kLogDetail, kLogColumns };
 
@@ -112,12 +110,6 @@ int CLeftView::OnCreate(LPCREATESTRUCT lpCreateStruct)
 
     m_logInfo.Create(L"", WS_CHILD | SS_LEFT | SS_CENTERIMAGE | SS_ENDELLIPSIS, none, this, IDC_LOG_INFO);
     m_logInfo.SetFont(&m_font);
-    m_logFilter.Create(WS_CHILD | TCS_BUTTONS | TCS_FLATBUTTONS | TCS_FOCUSNEVER, none, this, IDC_LOG_FILTER);
-    m_logFilter.SetFont(&m_font);
-    m_logFilter.InsertItem(kFilterAll, L"전체");
-    m_logFilter.InsertItem(kFilterDrawn, L"표시");
-    m_logFilter.InsertItem(kFilterHidden, L"미표시");
-    m_logFilter.SetCurSel(kFilterAll);
 
     m_log.Create(WS_CHILD | WS_BORDER | LVS_REPORT | LVS_OWNERDATA | LVS_SHOWSELALWAYS | LVS_NOSORTHEADER,
                  none, this, IDC_LOG_LIST);
@@ -178,8 +170,7 @@ void CLeftView::Layout()
     }
     m_layers.MoveWindow(page.left, page.top + 2 * bar, page.Width(), page.Height() - 2 * bar);
 
-    m_logFilter.MoveWindow(page.left + gap, page.top + gap, page.Width() - 2 * gap, bar - gap);
-    int top = page.top + bar;
+    int top = page.top;
     m_logInfo.MoveWindow(page.left + gap, top, page.Width() - 2 * gap, bar);
     top += bar;
     m_log.MoveWindow(page.left, top, page.Width(), page.bottom - top);
@@ -204,7 +195,6 @@ void CLeftView::ShowPage(int page)
     for (CButton* button : { &m_rankUp, &m_rankDown, &m_rankSame })
         button->ShowWindow(layers);
     m_rankHint.ShowWindow(layers);
-    m_logFilter.ShowWindow(log);
     m_logInfo.ShowWindow(log);
     m_log.ShowWindow(log);
 }
@@ -432,61 +422,17 @@ void CLeftView::OnLayerCustomDraw(NMHDR* pNMHDR, LRESULT* pResult)
     }
 }
 
-// 로그 필터 탭의 "전체 / 표시 / 미표시" 개수를 갱신하고 목록을 다시 채움
+// 로그 목록을 다시 채움: 줄 수 = 로그 개수 (화면 줄 번호 = 로그 번호, 파일 순서 그대로)
 void CLeftView::FillLog()
 {
-    const auto& log = GetDocument()->m_dwg.log;
-    int drawn = static_cast<int>(std::count_if(log.begin(), log.end(), [](const DxfLogEntry& e) { return e.drawn; }));
-    const int counts[] = { static_cast<int>(log.size()), drawn, static_cast<int>(log.size()) - drawn };
-    const wchar_t* names[] = { L"전체", L"표시", L"미표시" };
-    for (int f = kFilterAll; f <= kFilterHidden; ++f)
-    {
-        CString label;
-        label.Format(L"%s %d", names[f], counts[f]);
-        TCITEM item = {};
-        item.mask = TCIF_TEXT;
-        item.pszText = label.GetBuffer();
-        m_logFilter.SetItem(f, &item);
-        label.ReleaseBuffer();
-    }
-    ApplyLogFilter();
+    const auto& log = GetDocument()->m_dwg.log;                     // 파서가 만든 로그 목록
+    m_log.SetItemCountEx(static_cast<int>(log.size()), LVSICF_NOSCROLL);   // 가상 목록에 "줄이 N개"라고만 알림 (글자는 OnLogGetDispInfo가 채움)
+    m_log.SetItemState(-1, 0, LVIS_SELECTED | LVIS_FOCUSED);        // 이전 선택 표시 지우기
+    m_log.Invalidate(FALSE);                                        // 목록 다시 그리기
+    ShowLogSummary();                                               // 위쪽 안내문 갱신
 }
 
-// 필터에 맞는 로그 번호를 m_logRows에 모으고 목록 줄 수를 갱신 (선택한 로그는 유지)
-void CLeftView::ApplyLogFilter()
-{
-    const auto& log = GetDocument()->m_dwg.log;
-    int filter = std::max(0, m_logFilter.GetCurSel());
-    m_logRows.clear();
-    for (int i = 0; i < static_cast<int>(log.size()); ++i)
-    {
-        if (filter == kFilterAll || (filter == kFilterDrawn) == log[i].drawn)
-            m_logRows.push_back(i);
-    }
-
-    m_filling = true;
-    m_log.SetItemCountEx(static_cast<int>(m_logRows.size()), LVSICF_NOSCROLL);
-    m_log.SetItemState(-1, 0, LVIS_SELECTED | LVIS_FOCUSED);
-    auto shown = std::find(m_logRows.begin(), m_logRows.end(), GetDocument()->m_selectedLog);
-    if (shown != m_logRows.end())
-    {
-        int row = static_cast<int>(shown - m_logRows.begin());
-        m_log.SetItemState(row, LVIS_SELECTED | LVIS_FOCUSED, LVIS_SELECTED | LVIS_FOCUSED);
-        m_log.EnsureVisible(row, FALSE);
-    }
-    m_log.Invalidate(FALSE);
-    m_filling = false;
-    ShowLogSummary();
-}
-
-// 필터 탭을 바꾸면 다시 거름
-void CLeftView::OnLogFilterChanged(NMHDR*, LRESULT* pResult)
-{
-    *pResult = 0;
-    ApplyLogFilter();
-}
-
-// 로그 목록 위 안내문 ("N개 (회색: 도면에 없음)")
+// 로그 목록 위 안내문 ("N개 (그림 M · 회색 K: 도면에 없음)")
 void CLeftView::ShowLogSummary()
 {
     const auto& log = GetDocument()->m_dwg.log;
@@ -494,16 +440,12 @@ void CLeftView::ShowLogSummary()
     if (log.empty())
         info = L"엔티티 레코드 없음";
     else
-        info.Format(L"%d개  (회색: 도면에 없음)", static_cast<int>(m_logRows.size()));
+    {
+        int total = static_cast<int>(log.size());
+        int drawn = static_cast<int>(std::count_if(log.begin(), log.end(), [](const DxfLogEntry& e) { return e.drawn; }));
+        info.Format(L"%d개  (그림 %d · 회색 %d: 도면에 없음)", total, drawn, total - drawn);
+    }
     m_logInfo.SetWindowText(info);
-}
-
-// 화면 줄 번호 → 로그 번호 (m_logRows). 범위 밖이면 -1
-int CLeftView::LogIndexOfRow(int row) const
-{
-    return row >= 0 && row < static_cast<int>(m_logRows.size())   // 줄 번호가 0 이상이고 표 크기 안이면
-        ? m_logRows[row]                                           //   그 칸에 적힌 로그 번호 (예: m_logRows[1] = 2)
-        : -1;                                                      //   빈 곳을 눌렀거나 범위 밖이면 -1
 }
 
 // 가상 목록이 칸 글자를 물어보면 채워 줌 (화면에 보이는 줄만)
@@ -511,10 +453,11 @@ void CLeftView::OnLogGetDispInfo(NMHDR* pNMHDR, LRESULT* pResult)
 {
     *pResult = 0;
     auto* di = reinterpret_cast<NMLVDISPINFO*>(pNMHDR);
-    int index = LogIndexOfRow(di->item.iItem);
-    if (!(di->item.mask & LVIF_TEXT) || index < 0)
+    const auto& log = GetDocument()->m_dwg.log;
+    int index = di->item.iItem;                                     // 화면 줄 번호 = 로그 번호
+    if (!(di->item.mask & LVIF_TEXT) || index < 0 || index >= static_cast<int>(log.size()))
         return;
-    std::wstring text = LogCell(GetDocument()->m_dwg.log, index, di->item.iSubItem);
+    std::wstring text = LogCell(log, index, di->item.iSubItem);
     wcsncpy_s(di->item.pszText, di->item.cchTextMax, text.c_str(), _TRUNCATE);
 }
 
@@ -522,7 +465,7 @@ void CLeftView::OnLogGetDispInfo(NMHDR* pNMHDR, LRESULT* pResult)
 void CLeftView::OnLogDoubleClick(NMHDR* pNMHDR, LRESULT* pResult) // 로그 더블클릭하면 선택
 {
     *pResult = 0;                                                   // 알림 처리 결과 (0 = 기본 처리)
-    int index = LogIndexOfRow(reinterpret_cast<NMITEMACTIVATE*>(pNMHDR)->iItem);   // 알림 헤더를 더블클릭 알림 형식으로 바꿔 화면 줄 번호(iItem)를 꺼내고 → 로그 번호로
+    int index = reinterpret_cast<NMITEMACTIVATE*>(pNMHDR)->iItem;   // 알림 헤더를 더블클릭 알림 형식으로 바꿔 줄 번호(iItem)를 꺼냄. 줄 번호 = 로그 번호
     if (index >= 0)                                                 // 실제 로그 줄을 눌렀으면 (빈 곳이면 -1)
         SelectLog(index);                                           //   그 로그를 선택
 }
@@ -564,8 +507,9 @@ void CLeftView::OnLogCustomDraw(NMHDR* pNMHDR, LRESULT* pResult)
     }
     else if (cd->nmcd.dwDrawStage == CDDS_ITEMPREPAINT)
     {
-        int index = LogIndexOfRow(static_cast<int>(cd->nmcd.dwItemSpec));
-        if (index >= 0 && !GetDocument()->m_dwg.log[index].drawn)
+        const auto& log = GetDocument()->m_dwg.log;
+        int index = static_cast<int>(cd->nmcd.dwItemSpec);          // 그리려는 줄 번호 = 로그 번호
+        if (index >= 0 && index < static_cast<int>(log.size()) && !log[index].drawn)
             cd->clrText = RGB(140, 140, 140);
     }
 }
