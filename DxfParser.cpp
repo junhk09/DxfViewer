@@ -190,17 +190,16 @@ size_t ParseEntity(const std::vector<Record>& recs, size_t i, std::vector<DxfEnt
     e.color = Int(r, 62, 256);
 
     log.push_back({ section, t, Str(r, 5), e.layer, e.color });
-    DxfLogEntry& entry = log.back();
     e.sourceLog = static_cast<int>(log.size()) - 1;
     if (Find(r, 210))
-        entry.detail = L"법선 " + Pt(r, 210) + L"  ";
+        log.back().detail = L"법선 " + Pt(r, 210) + L"  ";
 
     const bool invisible = Int(r, 60, 0) == 1;
     auto keep = [&]() {
         if (!invisible)
             return true;
-        entry.drawn = false;
-        entry.detail += L"  (숨김: 그룹 코드 60)";
+        log.back().drawn = false;
+        log.back().detail += L"  (숨김: 그룹 코드 60)";
         return false;
     };
 
@@ -209,14 +208,14 @@ size_t ParseEntity(const std::vector<Record>& recs, size_t i, std::vector<DxfEnt
         e.type = EntType::Line;
         e.pts ={ { Dbl(r, 10), Dbl(r, 20), Dbl(r, 30) }, { Dbl(r, 11), Dbl(r, 21), Dbl(r, 31) } };
         double dx = e.pts[1].x - e.pts[0].x, dy = e.pts[1].y - e.pts[0].y, dz = e.pts[1].z - e.pts[0].z;
-        entry.detail += Format(L"시작 %s  끝 %s  길이 %.4f", Pt(r, 10).c_str(), Pt(r, 11).c_str(),
+        log.back().detail += Format(L"시작 %s  끝 %s  길이 %.4f", Pt(r, 10).c_str(), Pt(r, 11).c_str(),
                                std::sqrt(dx * dx + dy * dy + dz * dz));
     }
     else if (t == L"POINT")
     {
         e.type = EntType::Point;
         e.pts = { { Dbl(r, 10), Dbl(r, 20), Dbl(r, 30) } };
-        entry.detail += L"위치 " + Pt(r, 10);
+        log.back().detail += L"위치 " + Pt(r, 10);
     }
     else if (t == L"CIRCLE" || t == L"ARC")
     {
@@ -230,14 +229,14 @@ size_t ParseEntity(const std::vector<Record>& recs, size_t i, std::vector<DxfEnt
                 sweep += 2 * kPi;
         }
         AppendArc(e.pts, Ocs(Extrusion(r)), Dbl(r, 10), Dbl(r, 20), Dbl(r, 30), Dbl(r, 40), a0, sweep);
-        entry.detail += Format(L"중심 %s  반지름 %.4f", Pt(r, 10).c_str(), Dbl(r, 40));
+        log.back().detail += Format(L"중심 %s  반지름 %.4f", Pt(r, 10).c_str(), Dbl(r, 40));
         if (t == L"ARC")
-            entry.detail += Format(L"  각도 %.2f° ~ %.2f°", Dbl(r, 50), Dbl(r, 51));
+            log.back().detail += Format(L"  각도 %.2f° ~ %.2f°", Dbl(r, 50), Dbl(r, 51));
     }
     else                                                 // 그 밖의 엔티티 전부: 그릴 수 없음 → 로그에 "해석 불가"만 남김
     {
-        entry.drawn = false;
-        entry.detail = L"해석 불가";
+        log.back().drawn = false;
+        log.back().detail = L"해석 불가";
         if (t == L"POLYLINE" || (t == L"INSERT" && Int(r, 66) == 1))   // 뒤에 VERTEX / ATTRIB … SEQEND가 딸려 오는 종류는
         {                                                               //   그 레코드들까지 이 한 줄로 묶어서 건너뜀
             size_t j = i + 1;
