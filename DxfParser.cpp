@@ -6,7 +6,6 @@
 #include <cstdlib>
 #include <fstream>
 #include <iterator>
-#include <unordered_map>
 
 namespace {
 
@@ -235,12 +234,13 @@ size_t ParseEntity(const std::vector<Record>& recs, size_t i, std::vector<DxfEnt
     {
         log.back().drawn = false;
         log.back().detail = L"해석 불가";
-        if (t == L"POLYLINE" || (t == L"INSERT" && Int(recs[i], 66) == 1))   // 뒤에 VERTEX / ATTRIB … SEQEND가 딸려 오는 종류는
-        {                                                               //   그 레코드들까지 이 한 줄로 묶어서 건너뜀
-            size_t j = i + 1;
-            while (j < recs.size() && (recs[j].type == L"VERTEX" || recs[j].type == L"ATTRIB"))
+        if (t == L"POLYLINE" || (t == L"INSERT" && Int(recs[i], 66) == 1)) 
+        {                                                              
+            size_t j = i + 1; //recs[j].type이 recs[10] POLYLINE, recs[11] VERTEX이런식인데, POLYLINE, INSERT,등을 만나면
+            //  VERTEX, ATTRIB이 딸려나온다. recs[12]=VERTEX이런식으로, 따라서 그만큼을 skip해버림.
+            while (j < recs.size() && (recs[j].type == L"VERTEX" || recs[j].type == L"ATTRIB")) 
                 ++j;
-            last = (j < recs.size() && recs[j].type == L"SEQEND") ? j : j - 1;
+            last = (j < recs.size() && recs[j].type == L"SEQEND") ? j : j - 1; // 마지막엔 SEQEND가 오기때문에 끝나면 -1해줌.
         }
         return last;
     }
@@ -336,7 +336,7 @@ bool LoadDxf(const std::wstring& path, DxfDrawing& dwg, std::wstring& error)
     }
 
     UINT cp = DetectCodePage(lines);
-    std::vector<Record> recs;
+    std::vector<Record> recs; // 선언
     for (size_t i = 0; i + 1 < lines.size(); i += 2)
     {
         std::string codeText = TrimA(lines[i]);
@@ -413,21 +413,11 @@ bool LoadDxf(const std::wstring& path, DxfDrawing& dwg, std::wstring& error)
         return false;
     }
 
-    std::unordered_map<std::wstring, int> index;
-    for (size_t k = 0; k < dwg.layers.size(); ++k)
-        index[dwg.layers[k].name] = static_cast<int>(k);
     for (DxfEntity& e : dwg.entities)
     {
-        auto it = index.find(e.layer);
-        if (it == index.end())
-        {
-            DxfLayer layer;
-            layer.name = e.layer;
-            dwg.layers.push_back(layer);
-            it = index.emplace(e.layer, static_cast<int>(dwg.layers.size() - 1)).first;
-        }
-        e.layerIndex = it->second;
-        dwg.layers[e.layerIndex].entityCount++;
+        e.layerIndex = dwg.FindLayer(e.layer);
+        if (e.layerIndex >= 0)
+            dwg.layers[e.layerIndex].entityCount++;
         for (const Vec3& p : e.pts)
         {
             if (!dwg.hasExtents)
